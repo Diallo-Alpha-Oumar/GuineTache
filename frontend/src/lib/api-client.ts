@@ -58,7 +58,10 @@ async function refreshAccessToken(): Promise<boolean> {
 
 async function request<T>(path: string, options: RequestInit = {}, allowRetry = true): Promise<ApiEnvelope<T>> {
   const headers = new Headers(options.headers)
-  headers.set('Content-Type', 'application/json')
+  // Pour un FormData, laisser le navigateur définir le Content-Type (avec la boundary multipart).
+  if (!(options.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json')
+  }
   if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`)
 
   const res = await fetch(`${API_BASE_URL}${path}`, {
@@ -94,5 +97,8 @@ export const api = {
     request<T>(path, { method: 'POST', body: payload !== undefined ? JSON.stringify(payload) : undefined }),
   patch: <T>(path: string, payload?: unknown) =>
     request<T>(path, { method: 'PATCH', body: payload !== undefined ? JSON.stringify(payload) : undefined }),
+  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  upload: <T>(path: string, formData: FormData, method: 'POST' | 'PATCH' = 'POST') =>
+    request<T>(path, { method, body: formData }),
   refreshAccessToken,
 }

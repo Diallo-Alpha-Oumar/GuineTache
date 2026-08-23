@@ -91,6 +91,19 @@ const changePasswordSchema = {
     .strict(),
 };
 
+const updateProfileSchema = {
+  body: z
+    .object({
+      firstName: nameSchema('Le prénom').optional(),
+      lastName: nameSchema('Le nom').optional(),
+      email: emailSchema.optional(),
+    })
+    .strict()
+    .refine((data) => Object.keys(data).length > 0, {
+      message: 'Aucune donnée à mettre à jour.',
+    }),
+};
+
 module.exports = {
   registerSchema,
   verifyEmailSchema,
@@ -99,4 +112,5 @@ module.exports = {
   forgotPasswordSchema,
   resetPasswordSchema,
   changePasswordSchema,
+  updateProfileSchema,
 };

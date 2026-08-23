@@ -48,13 +48,30 @@ export const resetPasswordSchema = z
 export const taskSchema = z.object({
   title: z.string().min(3, 'Le titre doit contenir au moins 3 caractères'),
   description: z.string().min(5, 'La description doit contenir au moins 5 caractères'),
-  status: z.enum(['TODO', 'IN_PROGRESS', 'DONE']),
+  status: z.enum(['TODO', 'IN_PROGRESS', 'CANCELLED', 'DONE']),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']),
-  dueDate: z.string().nullable(),
+  dueDate: z.string().min(1, 'La date limite est requise'),
   assignedToId: z.string().nullable(),
 })
 
+export const taskSchemaWithAssignee = taskSchema.extend({
+  assignedToId: z.string().min(1, "Vous devez assigner la tâche à un utilisateur"),
+})
+
 export type TaskFormValues = z.infer<typeof taskSchema>
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Le mot de passe actuel est requis'),
+    newPassword: passwordSchema,
+    confirmNewPassword: z.string().min(1, 'Veuillez confirmer le nouveau mot de passe'),
+  })
+  .refine((data) => data.newPassword === data.confirmNewPassword, {
+    message: 'Les mots de passe ne correspondent pas',
+    path: ['confirmNewPassword'],
+  })
+
+export type ChangePasswordFormValues = z.infer<typeof changePasswordSchema>
 
 export const profileSchema = z.object({
   fullName: z.string().min(2, 'Le nom complet doit contenir au moins 2 caractères'),

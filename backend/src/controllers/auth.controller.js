@@ -108,6 +108,30 @@ const changePassword = catchAsync(async (req, res) => {
   ApiResponse.success(res, { message: 'Mot de passe modifié avec succès.' });
 });
 
+const updateProfile = catchAsync(async (req, res) => {
+  const user = await authService.updateProfile(req.user._id, req.body);
+  ApiResponse.success(res, {
+    message: 'Profil mis à jour avec succès.',
+    data: user,
+  });
+});
+
+const uploadAvatar = catchAsync(async (req, res) => {
+  const user = await authService.updateAvatar(req.user._id, req.file);
+  ApiResponse.success(res, {
+    message: 'Photo de profil mise à jour avec succès.',
+    data: user,
+  });
+});
+
+const deleteAvatar = catchAsync(async (req, res) => {
+  const user = await authService.removeAvatar(req.user._id);
+  ApiResponse.success(res, {
+    message: 'Photo de profil supprimée avec succès.',
+    data: user,
+  });
+});
+
 module.exports = {
   register,
   verifyEmail,
@@ -119,4 +143,7 @@ module.exports = {
   forgotPassword,
   resetPassword,
   changePassword,
+  updateProfile,
+  uploadAvatar,
+  deleteAvatar,
 };

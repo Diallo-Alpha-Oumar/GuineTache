@@ -46,6 +46,10 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    avatarUrl: {
+      type: String,
+      default: null,
+    },
     lastLogin: {
       type: Date,
       default: null,

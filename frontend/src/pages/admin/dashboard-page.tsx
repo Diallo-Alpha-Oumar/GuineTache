@@ -9,6 +9,7 @@ import {
   PlusCircle,
   TimerReset,
   Users,
+  XCircle,
 } from 'lucide-react'
 import {
   Bar,
@@ -46,6 +47,7 @@ const CHART_COLORS = ['#94a3b8', BRAND_ORANGE, BRAND_GREEN]
 const STATUS_ACTIVITY_ICON = {
   TODO: ListTodo,
   IN_PROGRESS: TimerReset,
+  CANCELLED: XCircle,
   DONE: CheckCircle2,
 } as const
 
@@ -55,9 +57,9 @@ export function AdminDashboardPage() {
   const [users, setUsers] = useState<PublicUser[]>([])
 
   useEffect(() => {
-    setStats(statsService.getAdminStats())
-    setTasks(taskService.getAll())
-    setUsers(userService.getAll({ role: 'USER' }))
+    statsService.getAdminStats().then(setStats)
+    taskService.getAll().then(setTasks)
+    userService.getAll({ role: 'USER' }).then(setUsers)
   }, [])
 
   const assigneeName = useMemo(() => {

@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { TaskFiltersBar } from '@/components/tasks/task-filters-bar'
 import { StatusBadge } from '@/components/tasks/status-badge'
 import { PriorityBadge } from '@/components/tasks/priority-badge'
@@ -32,48 +33,79 @@ export function AdminTasksListPage() {
   const { user } = useAuth()
   const [tasks, setTasks] = useState<Task[]>([])
   const [users, setUsers] = useState<PublicUser[]>([])
+  const [allUsers, setAllUsers] = useState<PublicUser[]>([])
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<TaskStatus | 'ALL'>('ALL')
   const [priority, setPriority] = useState<TaskPriority | 'ALL'>('ALL')
+  const [scope, setScope] = useState<'all' | 'mine'>('all')
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null)
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   function refresh() {
-    setTasks(taskService.getAll())
-    setUsers(userService.getAll({ role: 'USER' }))
+    taskService.getAll().then(setTasks)
+    userService.getAll({ role: 'USER' }).then(setUsers)
+    userService.getAll().then(setAllUsers)
   }
 
   useEffect(refresh, [])
 
-  const filtered = useMemo(() => taskService.getAll({ search, status, priority }), [tasks, search, status, priority])
+  const filtered = useMemo(() => {
+    let result = tasks
+    if (scope === 'mine' && user) {
+      result = result.filter((t) => t.createdById === user.id)
+    }
+    if (search) {
+      const term = search.toLowerCase()
+      result = result.filter((t) => t.title.toLowerCase().includes(term) || t.description.toLowerCase().includes(term))
+    }
+    if (status !== 'ALL') result = result.filter((t) => t.status === status)
+    if (priority !== 'ALL') result = result.filter((t) => t.priority === priority)
+    return result
+  }, [tasks, search, status, priority, scope, user])
   const { page, totalPages, setPage, paginated } = usePagination(filtered, 8)
 
   function userName(id: string | null) {
     if (!id) return 'Non assignée'
-    return users.find((u) => u.id === id)?.fullName ?? 'Utilisateur inconnu'
+    return allUsers.find((u) => u.id === id)?.fullName ?? 'Utilisateur inconnu'
   }
 
-  function handleStatusChange(task: Task, newStatus: TaskStatus) {
+  async function handleStatusChange(task: Task, newStatus: TaskStatus) {
     if (!user) return
-    taskService.updateStatus(task.id, newStatus, user.id)
-    toast.success('Statut mis à jour')
-    refresh()
+    const result = await taskService.updateStatus(task.id, newStatus, user.id)
+    if (result.success) {
+      toast.success('Statut mis à jour')
+      refresh()
+    } else {
+      toast.error(result.message ?? 'Impossible de mettre à jour le statut.')
+    }
   }
 
   async function handleEditSubmit(values: TaskFormValues) {
     if (!taskToEdit || !user) return
-    taskService.update(taskToEdit.id, values, user.id)
-    toast.success('Tâche mise à jour')
-    setTaskToEdit(null)
-    refresh()
+    const result = await taskService.update(taskToEdit.id, values, user.id)
+    if (result.success) {
+      toast.success('Tâche mise à jour')
+      setTaskToEdit(null)
+      refresh()
+    } else {
+      toast.error(result.message ?? 'Impossible de mettre à jour la tâche.')
+    }
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!taskToDelete) return
-    taskService.remove(taskToDelete.id)
-    toast.success('Tâche supprimée')
-    setTaskToDelete(null)
-    refresh()
+    setIsDeleting(true)
+    const result = await taskService.remove(taskToDelete.id)
+    setIsDeleting(false)
+
+    if (result.success) {
+      toast.success('Tâche supprimée avec succès.')
+      setTaskToDelete(null)
+      refresh()
+    } else {
+      toast.error(result.message ?? 'Impossible de supprimer cette tâche.')
+    }
   }
 
   return (
@@ -90,6 +122,13 @@ export function AdminTasksListPage() {
           </Link>
         </Button>
       </div>
+
+      <Tabs value={scope} onValueChange={(v) => setScope(v as 'all' | 'mine')}>
+        <TabsList>
+          <TabsTrigger value="all">Toutes les tâches</TabsTrigger>
+          <TabsTrigger value="mine">Mes tâches</TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       <Card>
         <CardContent className="space-y-4 p-4 sm:p-6">
@@ -110,6 +149,7 @@ export function AdminTasksListPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Titre</TableHead>
+                    <TableHead>Créé par</TableHead>
                     <TableHead>Assigné à</TableHead>
                     <TableHead>Priorité</TableHead>
                     <TableHead>Statut</TableHead>
@@ -121,6 +161,7 @@ export function AdminTasksListPage() {
                   {paginated.map((task) => (
                     <TableRow key={task.id}>
                       <TableCell className="max-w-56 truncate font-medium">{task.title}</TableCell>
+                      <TableCell className="text-muted-foreground">{userName(task.createdById)}</TableCell>
                       <TableCell className="text-muted-foreground">{userName(task.assignedToId)}</TableCell>
                       <TableCell>
                         <PriorityBadge priority={task.priority} />
@@ -177,9 +218,10 @@ export function AdminTasksListPage() {
         open={!!taskToDelete}
         onOpenChange={(open) => !open && setTaskToDelete(null)}
         title="Supprimer cette tâche ?"
-        description={`Êtes-vous sûr de vouloir supprimer "${taskToDelete?.title}" ? Cette action est irréversible.`}
+        description={`Êtes-vous sûr de vouloir supprimer "${taskToDelete?.title}" ? Cette tâche ne sera plus visible dans la liste.`}
         confirmLabel="Supprimer"
         onConfirm={handleDelete}
+        loading={isDeleting}
       />
     </div>
   )

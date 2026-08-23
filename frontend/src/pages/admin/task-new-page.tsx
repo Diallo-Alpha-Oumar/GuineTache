@@ -15,7 +15,7 @@ export function AdminTaskNewPage() {
   const [users, setUsers] = useState<PublicUser[]>([])
 
   useEffect(() => {
-    setUsers(userService.getAll({ role: 'USER' }))
+    userService.getAll({ role: 'USER' }).then(setUsers)
   }, [])
 
   async function handleSubmit(values: TaskFormValues) {

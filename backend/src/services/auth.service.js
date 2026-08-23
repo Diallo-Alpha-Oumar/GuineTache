@@ -1,8 +1,12 @@
+const path = require('path');
+const fs = require('fs/promises');
 const User = require('../models/User');
 const ApiError = require('../errors/ApiError');
 const otpService = require('./otp.service');
 const tokenService = require('./token.service');
 const emailService = require('./email.service');
+const { AVATARS_DIR } = require('../middlewares/upload.middleware');
+const env = require('../config/env');
 
 const PUBLIC_USER_FIELDS = [
   '_id',
@@ -12,6 +16,7 @@ const PUBLIC_USER_FIELDS = [
   'role',
   'isEmailVerified',
   'isActive',
+  'avatarUrl',
   'createdAt',
   'updatedAt',
 ];
@@ -140,6 +145,69 @@ const resetPassword = async ({ email, otp, newPassword }) => {
   await tokenService.revokeAllUserSessions(user._id);
 };
 
+const AVATAR_URL_PREFIX = `${env.APP_URL}/uploads/avatars/`;
+
+const deleteAvatarFile = async (avatarUrl) => {
+  if (!avatarUrl || !avatarUrl.startsWith(AVATAR_URL_PREFIX)) return;
+  const filename = avatarUrl.slice(AVATAR_URL_PREFIX.length);
+  try {
+    await fs.unlink(path.join(AVATARS_DIR, filename));
+  } catch {
+    // Le fichier a peut-être déjà été supprimé : rien à faire.
+  }
+};
+
+const updateAvatar = async (userId, file) => {
+  const user = await User.findById(userId);
+  if (!user) {
+    throw ApiError.notFound('Utilisateur introuvable.');
+  }
+
+  const previousAvatarUrl = user.avatarUrl;
+  user.avatarUrl = `${AVATAR_URL_PREFIX}${file.filename}`;
+  await user.save();
+
+  await deleteAvatarFile(previousAvatarUrl);
+
+  return toPublicUser(user);
+};
+
+const removeAvatar = async (userId) => {
+  const user = await User.findById(userId);
+  if (!user) {
+    throw ApiError.notFound('Utilisateur introuvable.');
+  }
+
+  const previousAvatarUrl = user.avatarUrl;
+  user.avatarUrl = null;
+  await user.save();
+
+  await deleteAvatarFile(previousAvatarUrl);
+
+  return toPublicUser(user);
+};
+
+const updateProfile = async (userId, { firstName, lastName, email }) => {
+  const user = await User.findById(userId);
+  if (!user) {
+    throw ApiError.notFound('Utilisateur introuvable.');
+  }
+
+  if (email && email !== user.email) {
+    const existing = await User.findOne({ email });
+    if (existing) {
+      throw ApiError.conflict('Cette adresse e-mail est déjà utilisée.');
+    }
+    user.email = email;
+  }
+
+  if (firstName) user.firstName = firstName;
+  if (lastName) user.lastName = lastName;
+
+  await user.save();
+  return toPublicUser(user);
+};
+
 const changePassword = async (userId, { currentPassword, newPassword }) => {
   const user = await User.findById(userId).select('+password');
   if (!user || !(await user.comparePassword(currentPassword))) {
@@ -163,4 +231,7 @@ module.exports = {
   forgotPassword,
   resetPassword,
   changePassword,
+  updateProfile,
+  updateAvatar,
+  removeAvatar,
 };

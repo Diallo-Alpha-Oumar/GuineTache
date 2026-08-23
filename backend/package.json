@@ -14,7 +14,8 @@
     "test:watch": "cross-env NODE_ENV=test jest --watch --runInBand",
     "lint": "eslint . ",
     "lint:fix": "eslint . --fix",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "set-admin": "node scripts/set-admin.js"
   },
   "keywords": [
     "express",
@@ -37,6 +38,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^9.9.1",
     "morgan": "^1.10.0",
+    "multer": "^2.2.0",
     "nodemailer": "^9.0.5",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.0",

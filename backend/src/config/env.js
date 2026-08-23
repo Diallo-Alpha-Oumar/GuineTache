@@ -13,6 +13,7 @@ const env = {
   NODE_ENV: process.env.NODE_ENV || 'development',
   PORT: parseInt(process.env.PORT, 10) || 5000,
   API_PREFIX: process.env.API_PREFIX || '/api/v1',
+  APP_URL: process.env.APP_URL || `http://localhost:${parseInt(process.env.PORT, 10) || 5000}`,
 
   CORS_ORIGIN: toArray(process.env.CORS_ORIGIN),
 

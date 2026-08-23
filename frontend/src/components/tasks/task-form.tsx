@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { taskSchema, type TaskFormValues } from '@/utils/validation'
+import { UserPicker } from '@/components/tasks/user-picker'
+import { taskSchema, taskSchemaWithAssignee, type TaskFormValues } from '@/utils/validation'
 import { TASK_PRIORITY_LABELS, TASK_STATUS_LABELS } from '@/utils/constants'
 import type { PublicUser, Task } from '@/types'
 
@@ -24,13 +25,13 @@ export function TaskForm({ task, assignableUsers, onSubmit, submitLabel = 'Enreg
     control,
     formState: { errors, isSubmitting },
   } = useForm<TaskFormValues>({
-    resolver: zodResolver(taskSchema),
+    resolver: zodResolver(assignableUsers ? taskSchemaWithAssignee : taskSchema),
     defaultValues: {
       title: task?.title ?? '',
       description: task?.description ?? '',
       status: task?.status ?? 'TODO',
       priority: task?.priority ?? 'MEDIUM',
-      dueDate: task?.dueDate ? task.dueDate.slice(0, 10) : null,
+      dueDate: task?.dueDate ? task.dueDate.slice(0, 10) : '',
       assignedToId: task?.assignedToId ?? null,
     },
   })
@@ -38,7 +39,7 @@ export function TaskForm({ task, assignableUsers, onSubmit, submitLabel = 'Enreg
   return (
     <form
       onSubmit={handleSubmit((values) =>
-        onSubmit({ ...values, dueDate: values.dueDate ? new Date(values.dueDate).toISOString() : null }),
+        onSubmit({ ...values, dueDate: new Date(values.dueDate).toISOString() }),
       )}
       className="space-y-5"
       noValidate
@@ -104,7 +105,8 @@ export function TaskForm({ task, assignableUsers, onSubmit, submitLabel = 'Enreg
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="dueDate">Date limite</Label>
-          <Input id="dueDate" type="date" {...register('dueDate')} />
+          <Input id="dueDate" type="date" {...register('dueDate')} aria-invalid={!!errors.dueDate} />
+          {errors.dueDate && <p className="text-xs text-destructive">{errors.dueDate.message}</p>}
         </div>
 
         {assignableUsers && (
@@ -114,21 +116,10 @@ export function TaskForm({ task, assignableUsers, onSubmit, submitLabel = 'Enreg
               control={control}
               name="assignedToId"
               render={({ field }) => (
-                <Select value={field.value ?? 'unassigned'} onValueChange={(v) => field.onChange(v === 'unassigned' ? null : v)}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Non assignée" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unassigned">Non assignée</SelectItem>
-                    {assignableUsers.map((u) => (
-                      <SelectItem key={u.id} value={u.id}>
-                        {u.fullName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <UserPicker users={assignableUsers} value={field.value ?? null} onChange={field.onChange} />
               )}
             />
+            {errors.assignedToId && <p className="text-xs text-destructive">{errors.assignedToId.message}</p>}
           </div>
         )}
       </div>

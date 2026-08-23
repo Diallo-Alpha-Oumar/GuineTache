@@ -4,9 +4,11 @@ import { ArrowUpDown, Eye, ListTodo, Pencil, PlusCircle, Trash2 } from 'lucide-r
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { TaskFiltersBar } from '@/components/tasks/task-filters-bar'
 import { StatusBadge } from '@/components/tasks/status-badge'
+import { TASK_STATUS_LABELS } from '@/utils/constants'
 import { PriorityBadge } from '@/components/tasks/priority-badge'
 import { EmptyState } from '@/components/common/empty-state'
 import { Pagination } from '@/components/common/pagination'
@@ -29,10 +31,11 @@ export function UserTasksListPage() {
   const [priority, setPriority] = useState<TaskPriority | 'ALL'>('ALL')
   const [sortKey, setSortKey] = useState<SortKey>('updatedAt')
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   function refresh() {
     if (!user) return
-    setTasks(taskService.getAll({ assignedToId: user.id }))
+    taskService.getAll().then(setTasks)
   }
 
   useEffect(refresh, [user])
@@ -55,12 +58,30 @@ export function UserTasksListPage() {
 
   const { page, totalPages, setPage, paginated } = usePagination(filtered, 6)
 
-  function handleDelete() {
+  async function handleStatusChange(task: Task, newStatus: TaskStatus) {
+    if (!user) return
+    const result = await taskService.updateStatus(task.id, newStatus, user.id)
+    if (result.success) {
+      toast.success('Statut mis à jour')
+      refresh()
+    } else {
+      toast.error(result.message ?? 'Impossible de mettre à jour le statut.')
+    }
+  }
+
+  async function handleDelete() {
     if (!taskToDelete) return
-    taskService.remove(taskToDelete.id)
-    toast.success('Tâche supprimée')
-    setTaskToDelete(null)
-    refresh()
+    setIsDeleting(true)
+    const result = await taskService.remove(taskToDelete.id)
+    setIsDeleting(false)
+
+    if (result.success) {
+      toast.success('Tâche supprimée avec succès.')
+      setTaskToDelete(null)
+      refresh()
+    } else {
+      toast.error(result.message ?? 'Impossible de supprimer cette tâche.')
+    }
   }
 
   return (
@@ -123,7 +144,24 @@ export function UserTasksListPage() {
                         <PriorityBadge priority={task.priority} />
                       </TableCell>
                       <TableCell>
-                        <StatusBadge status={task.status} />
+                        {user && task.createdById === user.id ? (
+                          <Select value={task.status} onValueChange={(v) => handleStatusChange(task, v as TaskStatus)}>
+                            <SelectTrigger size="sm" className="w-36">
+                              <SelectValue>
+                                <StatusBadge status={task.status} />
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(TASK_STATUS_LABELS).map(([value, label]) => (
+                                <SelectItem key={value} value={value}>
+                                  {label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <StatusBadge status={task.status} />
+                        )}
                       </TableCell>
                       <TableCell>{formatDate(task.dueDate)}</TableCell>
                       <TableCell className="text-right">
@@ -157,9 +195,10 @@ export function UserTasksListPage() {
         open={!!taskToDelete}
         onOpenChange={(open) => !open && setTaskToDelete(null)}
         title="Supprimer cette tâche ?"
-        description={`Êtes-vous sûr de vouloir supprimer "${taskToDelete?.title}" ? Cette action est irréversible.`}
+        description={`Êtes-vous sûr de vouloir supprimer "${taskToDelete?.title}" ? Cette tâche ne sera plus visible dans votre liste.`}
         confirmLabel="Supprimer"
         onConfirm={handleDelete}
+        loading={isDeleting}
       />
     </div>
   )

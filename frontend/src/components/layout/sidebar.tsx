@@ -3,7 +3,7 @@ import { LogOut, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { NavItem } from './nav-config'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Logo } from './logo'
 import { useAuth } from '@/hooks/use-auth'
 
@@ -61,11 +61,11 @@ export function Sidebar({ items, badge, open, onClose }: SidebarProps) {
         {user && (
           <div className="flex items-center gap-2.5 border-b border-sidebar-border px-4 py-3">
             <Avatar className="size-9">
+              {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.fullName} />}
               <AvatarFallback className="text-xs">{getInitials(user.fullName)}</AvatarFallback>
             </Avatar>
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{user.fullName}</p>
-              <p className="truncate text-xs text-muted-foreground">{user.email}</p>
             </div>
           </div>
         )}

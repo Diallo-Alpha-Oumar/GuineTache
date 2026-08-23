@@ -1,6 +1,4 @@
-import { db } from '@/data/db'
 import type { ApiResult, Task, TaskPriority, TaskStatus, TaskStats } from '@/types'
-import { isOverdue } from '@/utils/date'
 import { api, ApiRequestError } from '@/lib/api-client'
 import { emailService } from './email.service'
 import { notificationService } from './notification.service'
@@ -12,7 +10,7 @@ interface BackendTask {
   id: string
   title: string
   description: string
-  status: 'todo' | 'in_progress' | 'done'
+  status: 'todo' | 'in_progress' | 'cancelled' | 'done'
   priority: 'low' | 'medium' | 'high' | 'urgent'
   dueDate: string | null
   assignedTo: string | null
@@ -21,10 +19,27 @@ interface BackendTask {
   updatedAt: string
 }
 
+interface BackendTaskStats {
+  total: number
+  todo: number
+  inProgress: number
+  cancelled: number
+  done: number
+  overdue: number
+}
+
 const STATUS_FROM_BACKEND: Record<BackendTask['status'], TaskStatus> = {
   todo: 'TODO',
   in_progress: 'IN_PROGRESS',
+  cancelled: 'CANCELLED',
   done: 'DONE',
+}
+
+const STATUS_TO_BACKEND: Record<TaskStatus, BackendTask['status']> = {
+  TODO: 'todo',
+  IN_PROGRESS: 'in_progress',
+  CANCELLED: 'cancelled',
+  DONE: 'done',
 }
 
 const PRIORITY_TO_BACKEND: Record<TaskPriority, BackendTask['priority']> = {
@@ -40,6 +55,8 @@ const PRIORITY_FROM_BACKEND: Record<BackendTask['priority'], TaskPriority> = {
   high: 'HIGH',
   urgent: 'URGENT',
 }
+
+const EMPTY_STATS: TaskStats = { total: 0, todo: 0, inProgress: 0, cancelled: 0, done: 0, overdue: 0 }
 
 function toFrontendTask(task: BackendTask): Task {
   return {
@@ -79,10 +96,10 @@ export type TaskInput = {
   assignedToId: string | null
 }
 
-function notifyAssignment(task: Task, actorId: string) {
+async function notifyAssignment(task: Task, actorId: string) {
   if (!task.assignedToId || task.assignedToId === actorId) return
 
-  const assignee = userService.getById(task.assignedToId)
+  const assignee = await userService.getById(task.assignedToId)
   if (!assignee) return
 
   notificationService.create(
@@ -96,30 +113,35 @@ function notifyAssignment(task: Task, actorId: string) {
 }
 
 export const taskService = {
-  getAll(filters: TaskFilters = {}): Task[] {
-    let tasks = db.getTasks()
+  // Le backend applique déjà le filtrage par utilisateur : un compte non-admin ne
+  // reçoit ici que les tâches qu'il a créées ou qui lui sont assignées.
+  async getAll(filters: TaskFilters = {}): Promise<Task[]> {
+    const params = new URLSearchParams()
+    if (filters.search) params.set('search', filters.search)
+    if (filters.status && filters.status !== 'ALL') params.set('status', STATUS_TO_BACKEND[filters.status])
+    if (filters.priority && filters.priority !== 'ALL') params.set('priority', PRIORITY_TO_BACKEND[filters.priority])
+    if (filters.assignedToId && MONGO_OBJECT_ID_REGEX.test(filters.assignedToId)) {
+      params.set('assignedTo', filters.assignedToId)
+    }
+    params.set('limit', '100')
 
-    if (filters.assignedToId) {
-      tasks = tasks.filter((t) => t.assignedToId === filters.assignedToId)
+    try {
+      const result = await api.get<{ tasks: BackendTask[] }>(`/tasks?${params.toString()}`)
+      return (result.data?.tasks ?? []).map(toFrontendTask)
+    } catch {
+      return []
     }
-    if (filters.search) {
-      const term = filters.search.toLowerCase()
-      tasks = tasks.filter(
-        (t) => t.title.toLowerCase().includes(term) || t.description.toLowerCase().includes(term),
-      )
-    }
-    if (filters.status && filters.status !== 'ALL') {
-      tasks = tasks.filter((t) => t.status === filters.status)
-    }
-    if (filters.priority && filters.priority !== 'ALL') {
-      tasks = tasks.filter((t) => t.priority === filters.priority)
-    }
-
-    return tasks.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
   },
 
-  getById(id: string): Task | null {
-    return db.getTasks().find((t) => t.id === id) ?? null
+  async getById(id: string): Promise<Task | null> {
+    if (!MONGO_OBJECT_ID_REGEX.test(id)) return null
+
+    try {
+      const result = await api.get<{ task: BackendTask }>(`/tasks/${id}`)
+      return result.data ? toFrontendTask(result.data.task) : null
+    } catch {
+      return null
+    }
   },
 
   async create(input: TaskInput, createdById: string): Promise<ApiResult<Task>> {
@@ -129,7 +151,7 @@ export const taskService = {
       input.assignedToId && MONGO_OBJECT_ID_REGEX.test(input.assignedToId) ? input.assignedToId : null
 
     try {
-      const result = await api.post<BackendTask>('/tasks', {
+      const result = await api.post<{ task: BackendTask }>('/tasks', {
         title: input.title,
         description: input.description,
         priority: PRIORITY_TO_BACKEND[input.priority],
@@ -141,10 +163,8 @@ export const taskService = {
         return { success: false, message: result.message ?? 'Erreur lors de la création de la tâche.' }
       }
 
-      const task = toFrontendTask(result.data)
-      // Miroir local le temps que les pages de liste/statistiques soient elles aussi connectées à l'API.
-      db.saveTasks([{ ...task, assignedToId: input.assignedToId }, ...db.getTasks()])
-      notifyAssignment({ ...task, assignedToId: input.assignedToId }, createdById)
+      const task = toFrontendTask(result.data.task)
+      void notifyAssignment({ ...task, assignedToId: input.assignedToId }, createdById)
 
       return { success: true, data: task, message: result.message }
     } catch (error) {
@@ -152,57 +172,92 @@ export const taskService = {
     }
   },
 
-  update(id: string, changes: Partial<TaskInput>, actorId: string): Task | null {
-    const tasks = db.getTasks()
-    const index = tasks.findIndex((t) => t.id === id)
-    if (index === -1) return null
-
-    const previous = tasks[index]
-    const updated: Task = { ...previous, ...changes, updatedAt: new Date().toISOString() }
-    tasks[index] = updated
-    db.saveTasks(tasks)
-
-    if (changes.assignedToId && changes.assignedToId !== previous.assignedToId) {
-      notifyAssignment(updated, actorId)
-    } else if (updated.assignedToId && updated.assignedToId !== actorId) {
-      notificationService.create(
-        updated.assignedToId,
-        'TASK_UPDATED',
-        'Tâche modifiée',
-        `La tâche "${updated.title}" a été mise à jour.`,
-        updated.id,
-      )
+  async update(id: string, changes: Partial<TaskInput>, actorId: string): Promise<ApiResult<Task>> {
+    if (!MONGO_OBJECT_ID_REGEX.test(id)) {
+      return { success: false, message: 'Tâche introuvable.' }
     }
 
-    if (changes.status === 'DONE' && previous.status !== 'DONE' && updated.assignedToId) {
-      notificationService.create(
-        updated.assignedToId,
-        'TASK_COMPLETED',
-        'Tâche terminée',
-        `La tâche "${updated.title}" a été marquée comme terminée.`,
-        updated.id,
-      )
+    const payload: Record<string, unknown> = {}
+    if (changes.title !== undefined) payload.title = changes.title
+    if (changes.description !== undefined) payload.description = changes.description
+    if (changes.status !== undefined) payload.status = STATUS_TO_BACKEND[changes.status]
+    if (changes.priority !== undefined) payload.priority = PRIORITY_TO_BACKEND[changes.priority]
+    if (changes.dueDate !== undefined) payload.dueDate = changes.dueDate
+    if (changes.assignedToId !== undefined) {
+      payload.assignedTo =
+        changes.assignedToId && MONGO_OBJECT_ID_REGEX.test(changes.assignedToId) ? changes.assignedToId : null
     }
 
-    return updated
+    try {
+      const result = await api.patch<{ task: BackendTask }>(`/tasks/${id}`, payload)
+      if (!result.data) {
+        return { success: false, message: result.message ?? 'Erreur lors de la mise à jour de la tâche.' }
+      }
+
+      const updated = { ...toFrontendTask(result.data.task), assignedToId: changes.assignedToId ?? result.data.task.assignedTo }
+
+      if (changes.assignedToId && changes.status === undefined) {
+        void notifyAssignment(updated, actorId)
+      } else if (updated.assignedToId && updated.assignedToId !== actorId) {
+        notificationService.create(
+          updated.assignedToId,
+          'TASK_UPDATED',
+          'Tâche modifiée',
+          `La tâche "${updated.title}" a été mise à jour.`,
+          updated.id,
+        )
+      }
+
+      if (changes.status === 'DONE' && updated.assignedToId) {
+        notificationService.create(
+          updated.assignedToId,
+          'TASK_COMPLETED',
+          'Tâche terminée',
+          `La tâche "${updated.title}" a été marquée comme terminée.`,
+          updated.id,
+        )
+      }
+
+      return { success: true, data: updated, message: result.message }
+    } catch (error) {
+      return { success: false, message: errorMessage(error) }
+    }
   },
 
-  updateStatus(id: string, status: TaskStatus, actorId: string): Task | null {
+  async updateStatus(id: string, status: TaskStatus, actorId: string): Promise<ApiResult<Task>> {
     return taskService.update(id, { status }, actorId)
   },
 
-  remove(id: string): void {
-    db.saveTasks(db.getTasks().filter((t) => t.id !== id))
+  async remove(id: string): Promise<ApiResult<void>> {
+    if (!MONGO_OBJECT_ID_REGEX.test(id)) {
+      return { success: true }
+    }
+
+    try {
+      const result = await api.delete<void>(`/tasks/${id}`)
+      return { success: true, message: result.message }
+    } catch (error) {
+      return { success: false, message: errorMessage(error) }
+    }
   },
 
-  getStats(userId?: string): TaskStats {
-    const tasks = userId ? db.getTasks().filter((t) => t.assignedToId === userId) : db.getTasks()
-    return {
-      total: tasks.length,
-      todo: tasks.filter((t) => t.status === 'TODO').length,
-      inProgress: tasks.filter((t) => t.status === 'IN_PROGRESS').length,
-      done: tasks.filter((t) => t.status === 'DONE').length,
-      overdue: tasks.filter((t) => isOverdue(t.dueDate, t.status)).length,
+  async restore(id: string): Promise<ApiResult<void>> {
+    try {
+      const result = await api.patch<void>(`/tasks/${id}/restore`)
+      return { success: true, message: result.message }
+    } catch (error) {
+      return { success: false, message: errorMessage(error) }
+    }
+  },
+
+  // Reflète toujours les tâches du compte authentifié (ou l'ensemble de la
+  // plateforme pour un administrateur) : le périmètre est appliqué côté backend.
+  async getStats(): Promise<TaskStats> {
+    try {
+      const result = await api.get<{ stats: BackendTaskStats }>('/tasks/stats')
+      return result.data?.stats ?? EMPTY_STATS
+    } catch {
+      return EMPTY_STATS
     }
   },
 }

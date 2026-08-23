@@ -14,9 +14,9 @@ const emailService = require('../../src/services/email.service');
 const API = env.API_PREFIX;
 
 const validUser = {
-  firstName: 'Lamah',
-  lastName: 'Foromo',
-  email: 'lamah@example.com',
+  firstName: 'Diallo',
+  lastName: 'Alpha',
+  email: 'aalphaoumar91@gmail.com',
   password: 'MotDePasseSecurise123!',
 };
 

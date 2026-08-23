@@ -1,3 +1,4 @@
+import { Loader2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,6 +19,7 @@ interface ConfirmDialogProps {
   cancelLabel?: string
   onConfirm: () => void
   destructive?: boolean
+  loading?: boolean
 }
 
 export function ConfirmDialog({
@@ -29,20 +31,26 @@ export function ConfirmDialog({
   cancelLabel = 'Annuler',
   onConfirm,
   destructive = true,
+  loading = false,
 }: ConfirmDialogProps) {
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
+    <AlertDialog open={open} onOpenChange={(next) => !loading && onOpenChange(next)}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
+          <AlertDialogCancel disabled={loading}>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction
-            onClick={onConfirm}
+            disabled={loading}
+            onClick={(event) => {
+              event.preventDefault()
+              onConfirm()
+            }}
             className={destructive ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : undefined}
           >
+            {loading && <Loader2 className="size-4 animate-spin" />}
             {confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>

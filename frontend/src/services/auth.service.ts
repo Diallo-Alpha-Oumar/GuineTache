@@ -15,6 +15,7 @@ interface BackendUser {
   role: 'user' | 'admin'
   isEmailVerified: boolean
   isActive?: boolean
+  avatarUrl?: string | null
   createdAt?: string
   updatedAt?: string
 }
@@ -29,6 +30,7 @@ function toPublicUser(user: BackendUser): PublicUser {
     email: user.email,
     role: (user.role === 'admin' ? 'ADMIN' : 'USER') as UserRole,
     isActive: user.isActive ?? true,
+    avatarUrl: user.avatarUrl ?? null,
     createdAt: user.createdAt ?? '',
     updatedAt: user.updatedAt ?? '',
   }
@@ -155,6 +157,62 @@ export const authService = {
       const result = await api.post<null>('/auth/reset-password', { email, otp: code, newPassword })
       removeItem(RESET_EMAIL_KEY)
       return { success: true, message: result.message }
+    } catch (error) {
+      return { success: false, message: errorMessage(error) }
+    }
+  },
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<ApiResult<null>> {
+    try {
+      const result = await api.patch<null>('/auth/change-password', { currentPassword, newPassword })
+      return { success: true, message: result.message }
+    } catch (error) {
+      return { success: false, message: errorMessage(error) }
+    }
+  },
+
+  async updateProfile(changes: { fullName?: string; email?: string }): Promise<ApiResult<PublicUser>> {
+    const payload: Record<string, string> = {}
+    if (changes.fullName !== undefined) {
+      const { firstName, lastName } = splitFullName(changes.fullName)
+      payload.firstName = firstName
+      payload.lastName = lastName
+    }
+    if (changes.email !== undefined) payload.email = changes.email
+
+    try {
+      const result = await api.patch<BackendUser>('/auth/me', payload)
+      if (!result.data) {
+        return { success: false, message: result.message ?? 'Erreur lors de la mise à jour du profil.' }
+      }
+      return { success: true, data: toPublicUser(result.data), message: result.message }
+    } catch (error) {
+      return { success: false, message: errorMessage(error) }
+    }
+  },
+
+  async uploadAvatar(file: File): Promise<ApiResult<PublicUser>> {
+    const formData = new FormData()
+    formData.append('avatar', file)
+
+    try {
+      const result = await api.upload<BackendUser>('/auth/me/avatar', formData, 'POST')
+      if (!result.data) {
+        return { success: false, message: result.message ?? "Erreur lors de l'envoi de la photo." }
+      }
+      return { success: true, data: toPublicUser(result.data), message: result.message }
+    } catch (error) {
+      return { success: false, message: errorMessage(error) }
+    }
+  },
+
+  async removeAvatar(): Promise<ApiResult<PublicUser>> {
+    try {
+      const result = await api.delete<BackendUser>('/auth/me/avatar')
+      if (!result.data) {
+        return { success: false, message: result.message ?? 'Erreur lors de la suppression de la photo.' }
+      }
+      return { success: true, data: toPublicUser(result.data), message: result.message }
     } catch (error) {
       return { success: false, message: errorMessage(error) }
     }

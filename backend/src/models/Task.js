@@ -17,7 +17,7 @@ const taskSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['todo', 'in_progress', 'done'],
+      enum: ['todo', 'in_progress', 'cancelled', 'done'],
       default: 'todo',
     },
     priority: {
@@ -39,6 +39,20 @@ const taskSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -51,7 +65,7 @@ const taskSchema = new mongoose.Schema(
   }
 );
 
-taskSchema.index({ createdBy: 1 });
-taskSchema.index({ assignedTo: 1 });
+taskSchema.index({ createdBy: 1, isDeleted: 1 });
+taskSchema.index({ assignedTo: 1, isDeleted: 1 });
 
 module.exports = mongoose.model('Task', taskSchema);

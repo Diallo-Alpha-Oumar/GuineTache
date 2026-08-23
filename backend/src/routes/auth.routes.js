@@ -3,6 +3,7 @@ const authController = require('../controllers/auth.controller');
 const validate = require('../middlewares/validate');
 const { authenticate } = require('../middlewares/auth.middleware');
 const { authLimiter } = require('../middlewares/rateLimiter');
+const { uploadAvatar } = require('../middlewares/upload.middleware');
 const {
   registerSchema,
   verifyEmailSchema,
@@ -11,6 +12,7 @@ const {
   forgotPasswordSchema,
   resetPasswordSchema,
   changePasswordSchema,
+  updateProfileSchema,
 } = require('../validators/auth.validator');
 
 const router = express.Router();
@@ -153,6 +155,77 @@ router.post('/logout', authController.logout);
  *         description: Non authentifié
  */
 router.get('/me', authenticate, authController.getMe);
+
+/**
+ * @openapi
+ * /auth/me:
+ *   patch:
+ *     summary: Met à jour le profil de l'utilisateur authentifié (prénom, nom, e-mail)
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               firstName: { type: string }
+ *               lastName: { type: string }
+ *               email: { type: string, format: email }
+ *     responses:
+ *       200:
+ *         description: Profil mis à jour
+ *       401:
+ *         description: Non authentifié
+ *       409:
+ *         description: Adresse e-mail déjà utilisée
+ */
+router.patch('/me', authenticate, validate(updateProfileSchema), authController.updateProfile);
+
+/**
+ * @openapi
+ * /auth/me/avatar:
+ *   post:
+ *     summary: Téléverse (ou remplace) la photo de profil de l'utilisateur authentifié
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [avatar]
+ *             properties:
+ *               avatar: { type: string, format: binary }
+ *     responses:
+ *       200:
+ *         description: Photo de profil mise à jour
+ *       400:
+ *         description: Fichier manquant, format non supporté ou taille excessive (max 2 Mo)
+ *       401:
+ *         description: Non authentifié
+ */
+router.post('/me/avatar', authenticate, uploadAvatar, authController.uploadAvatar);
+
+/**
+ * @openapi
+ * /auth/me/avatar:
+ *   delete:
+ *     summary: Supprime la photo de profil de l'utilisateur authentifié
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Photo de profil supprimée
+ *       401:
+ *         description: Non authentifié
+ */
+router.delete('/me/avatar', authenticate, authController.deleteAvatar);
 
 /**
  * @openapi

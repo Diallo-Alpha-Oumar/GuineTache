@@ -1,14 +1,16 @@
 import type { TaskPriority, TaskStatus, NotificationType } from '@/types'
 
 export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
-  TODO: 'À faire',
+  TODO: 'Créée',
   IN_PROGRESS: 'En cours',
+  CANCELLED: 'Annulée',
   DONE: 'Terminée',
 }
 
 export const TASK_STATUS_BADGE: Record<TaskStatus, string> = {
   TODO: 'bg-muted text-muted-foreground border-border',
   IN_PROGRESS: 'bg-primary/10 text-primary border-primary/20',
+  CANCELLED: 'bg-destructive/10 text-destructive border-destructive/20',
   DONE: 'bg-success/10 text-success border-success/20',
 }
 

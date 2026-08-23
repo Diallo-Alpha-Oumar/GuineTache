@@ -1,4 +1,4 @@
-import { CheckCircle2, Circle, TimerReset } from 'lucide-react'
+import { CheckCircle2, Circle, TimerReset, XCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useCountUp } from '@/hooks/use-count-up'
 import { cn } from '@/lib/utils'
@@ -53,7 +53,8 @@ export function TaskProgress({ stats, title = 'Progression globale' }: TaskProgr
         <ul className="w-full space-y-2 text-sm">
           <ProgressRow icon={CheckCircle2} iconClassName="text-success" label="Terminées" value={stats.done} />
           <ProgressRow icon={TimerReset} iconClassName="text-primary" label="En cours" value={stats.inProgress} />
-          <ProgressRow icon={Circle} iconClassName="text-muted-foreground" label="À faire" value={stats.todo} />
+          <ProgressRow icon={Circle} iconClassName="text-muted-foreground" label="Créées" value={stats.todo} />
+          <ProgressRow icon={XCircle} iconClassName="text-destructive" label="Annulées" value={stats.cancelled} />
         </ul>
       </CardContent>
     </Card>

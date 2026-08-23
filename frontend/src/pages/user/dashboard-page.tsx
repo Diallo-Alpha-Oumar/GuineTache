@@ -35,8 +35,8 @@ export function UserDashboardPage() {
 
   useEffect(() => {
     if (!user) return
-    setStats(taskService.getStats(user.id))
-    setTasks(taskService.getAll({ assignedToId: user.id }))
+    taskService.getStats().then(setStats)
+    taskService.getAll().then(setTasks)
     setActivity(
       notificationService
         .getForUser(user.id)
@@ -85,7 +85,7 @@ export function UserDashboardPage() {
         <div className="lg:col-span-2">
           <TaskActivityChart tasks={tasks} description="Vos tâches créées et terminées sur les 7 derniers jours." />
         </div>
-        <TaskProgress stats={stats ?? { total: 0, todo: 0, inProgress: 0, done: 0, overdue: 0 }} />
+        <TaskProgress stats={stats ?? { total: 0, todo: 0, inProgress: 0, cancelled: 0, done: 0, overdue: 0 }} />
       </div>
 
       <RecentTasks

@@ -1,3 +1,4 @@
+const path = require('path');
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
@@ -53,6 +54,16 @@ app.use(
 
 // Rate limiting global
 app.use(globalLimiter);
+
+// Fichiers uploadés (avatars, ...) — accessibles publiquement, y compris depuis le front sur une autre origine
+app.use(
+  '/uploads',
+  (req, res, next) => {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    next();
+  },
+  express.static(path.resolve(process.cwd(), 'uploads'))
+);
 
 // Documentation Swagger
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));

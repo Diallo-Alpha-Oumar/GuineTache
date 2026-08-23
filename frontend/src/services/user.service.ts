@@ -1,9 +1,44 @@
-import { db } from '@/data/db'
-import type { PublicUser, User, UserRole } from '@/types'
+import { api, ApiRequestError } from '@/lib/api-client'
+import type { ApiResult, PublicUser, UserRole } from '@/types'
 
-function toPublicUser(user: User): PublicUser {
-  const { password: _password, ...publicUser } = user
-  return publicUser
+interface BackendUser {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+  role: 'user' | 'admin'
+  isEmailVerified: boolean
+  isActive: boolean
+  avatarUrl: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+function toPublicUser(user: BackendUser): PublicUser {
+  return {
+    id: user.id,
+    fullName: `${user.firstName} ${user.lastName}`.trim(),
+    email: user.email,
+    role: (user.role === 'admin' ? 'ADMIN' : 'USER') as UserRole,
+    isActive: user.isActive,
+    avatarUrl: user.avatarUrl,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+  }
+}
+
+function splitFullName(fullName: string): { firstName: string; lastName: string } {
+  const parts = fullName.trim().split(/\s+/)
+  const firstName = parts[0] ?? ''
+  const lastName = parts.slice(1).join(' ') || firstName
+  return { firstName, lastName }
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof ApiRequestError) {
+    return error.fieldErrors[0]?.message ?? error.message
+  }
+  return error instanceof Error ? error.message : 'Une erreur est survenue.'
 }
 
 export interface UserFilters {
@@ -12,53 +47,78 @@ export interface UserFilters {
   status?: 'ALL' | 'ACTIVE' | 'INACTIVE'
 }
 
+export interface UserUpdateInput {
+  fullName?: string
+  email?: string
+  role?: UserRole
+}
+
 export const userService = {
-  getAll(filters: UserFilters = {}): PublicUser[] {
-    let users = db.getUsers()
-
-    if (filters.search) {
-      const term = filters.search.toLowerCase()
-      users = users.filter(
-        (u) => u.fullName.toLowerCase().includes(term) || u.email.toLowerCase().includes(term),
-      )
-    }
-    if (filters.role && filters.role !== 'ALL') {
-      users = users.filter((u) => u.role === filters.role)
-    }
+  async getAll(filters: UserFilters = {}): Promise<PublicUser[]> {
+    const params = new URLSearchParams()
+    if (filters.search) params.set('search', filters.search)
+    if (filters.role && filters.role !== 'ALL') params.set('role', filters.role.toLowerCase())
     if (filters.status && filters.status !== 'ALL') {
-      users = users.filter((u) => (filters.status === 'ACTIVE' ? u.isActive : !u.isActive))
+      params.set('status', filters.status === 'ACTIVE' ? 'active' : 'inactive')
     }
+    params.set('limit', '100')
 
-    return users.map(toPublicUser)
+    try {
+      const result = await api.get<{ users: BackendUser[] }>(`/users?${params.toString()}`)
+      return (result.data?.users ?? []).map(toPublicUser)
+    } catch {
+      return []
+    }
   },
 
-  getById(id: string): PublicUser | null {
-    const user = db.getUsers().find((u) => u.id === id)
-    return user ? toPublicUser(user) : null
+  async getById(id: string): Promise<PublicUser | null> {
+    try {
+      const result = await api.get<{ user: BackendUser }>(`/users/${id}`)
+      return result.data ? toPublicUser(result.data.user) : null
+    } catch {
+      return null
+    }
   },
 
-  update(id: string, changes: Partial<Pick<User, 'fullName' | 'email' | 'role'>>): PublicUser | null {
-    const users = db.getUsers()
-    const index = users.findIndex((u) => u.id === id)
-    if (index === -1) return null
+  async update(id: string, changes: UserUpdateInput): Promise<ApiResult<PublicUser>> {
+    const payload: Record<string, string> = {}
+    if (changes.fullName !== undefined) {
+      const { firstName, lastName } = splitFullName(changes.fullName)
+      payload.firstName = firstName
+      payload.lastName = lastName
+    }
+    if (changes.email !== undefined) payload.email = changes.email
+    if (changes.role !== undefined) payload.role = changes.role.toLowerCase()
 
-    const updated: User = { ...users[index], ...changes, updatedAt: new Date().toISOString() }
-    users[index] = updated
-    db.saveUsers(users)
-    return toPublicUser(updated)
+    try {
+      const result = await api.patch<{ user: BackendUser }>(`/users/${id}`, payload)
+      if (!result.data) {
+        return { success: false, message: result.message ?? "Erreur lors de la mise à jour de l'utilisateur." }
+      }
+      return { success: true, data: toPublicUser(result.data.user), message: result.message }
+    } catch (error) {
+      return { success: false, message: errorMessage(error) }
+    }
   },
 
-  toggleActive(id: string): PublicUser | null {
-    const users = db.getUsers()
-    const index = users.findIndex((u) => u.id === id)
-    if (index === -1) return null
-
-    users[index] = { ...users[index], isActive: !users[index].isActive, updatedAt: new Date().toISOString() }
-    db.saveUsers(users)
-    return toPublicUser(users[index])
+  async toggleActive(id: string): Promise<ApiResult<PublicUser>> {
+    try {
+      const result = await api.patch<{ user: BackendUser }>(`/users/${id}/toggle-active`)
+      if (!result.data) {
+        return { success: false, message: result.message ?? 'Erreur lors du changement de statut.' }
+      }
+      return { success: true, data: toPublicUser(result.data.user), message: result.message }
+    } catch (error) {
+      return { success: false, message: errorMessage(error) }
+    }
   },
 
-  remove(id: string): void {
-    db.saveUsers(db.getUsers().filter((u) => u.id !== id))
+  async remove(id: string): Promise<ApiResult<void>> {
+    try {
+      const result = await api.delete<void>(`/users/${id}`)
+      return { success: true, message: result.message }
+    } catch (error) {
+      return { success: false, message: errorMessage(error) }
+    }
   },
 }

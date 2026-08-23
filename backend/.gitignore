@@ -18,6 +18,9 @@ coverage/
 dist/
 build/
 
+# Fichiers uploadés par les utilisateurs
+uploads/
+
 # OS
 .DS_Store
 Thumbs.db

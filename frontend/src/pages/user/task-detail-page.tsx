@@ -25,10 +25,11 @@ export function UserTaskDetailPage() {
 
   const [task, setTask] = useState<Task | null | undefined>(undefined)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     if (!id) return
-    setTask(taskService.getById(id))
+    taskService.getById(id).then(setTask)
   }, [id])
 
   if (task === undefined) return null
@@ -44,26 +45,43 @@ export function UserTaskDetailPage() {
     )
   }
 
-  function handleStatusChange(status: TaskStatus) {
+  async function handleStatusChange(status: TaskStatus) {
     if (!task || !user) return
-    const updated = taskService.updateStatus(task.id, status, user.id)
-    setTask(updated)
-    toast.success('Statut mis à jour')
+    const result = await taskService.updateStatus(task.id, status, user.id)
+    if (result.success && result.data) {
+      setTask(result.data)
+      toast.success('Statut mis à jour')
+    } else {
+      toast.error(result.message ?? 'Impossible de mettre à jour le statut.')
+    }
   }
 
   async function handleEditSubmit(values: TaskFormValues) {
     if (!task || !user) return
-    const updated = taskService.update(task.id, values, user.id)
-    setTask(updated)
-    toast.success('Tâche mise à jour')
-    setSearchParams({})
+    const result = await taskService.update(task.id, values, user.id)
+    if (result.success && result.data) {
+      setTask(result.data)
+      toast.success('Tâche mise à jour')
+      setSearchParams({})
+    } else {
+      toast.error(result.message ?? 'Impossible de mettre à jour la tâche.')
+    }
   }
 
-  function handleDelete() {
+  const canChangeStatus = !!user && task.createdById === user.id
+
+  async function handleDelete() {
     if (!task) return
-    taskService.remove(task.id)
-    toast.success('Tâche supprimée')
-    navigate('/user/tasks')
+    setIsDeleting(true)
+    const result = await taskService.remove(task.id)
+    setIsDeleting(false)
+
+    if (result.success) {
+      toast.success('Tâche supprimée avec succès.')
+      navigate('/user/tasks')
+    } else {
+      toast.error(result.message ?? 'Impossible de supprimer cette tâche.')
+    }
   }
 
   return (
@@ -120,21 +138,30 @@ export function UserTaskDetailPage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Changer le statut</p>
-                <Select value={task.status} onValueChange={(v) => handleStatusChange(v as TaskStatus)}>
-                  <SelectTrigger className="w-full sm:w-56">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(TASK_STATUS_LABELS).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {canChangeStatus ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-muted-foreground">Changer le statut</p>
+                  <Select value={task.status} onValueChange={(v) => handleStatusChange(v as TaskStatus)}>
+                    <SelectTrigger className="w-full sm:w-56">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(TASK_STATUS_LABELS).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-muted-foreground">Statut</p>
+                  <p className="text-xs text-muted-foreground">
+                    Seule la personne ayant créé la tâche peut modifier son statut.
+                  </p>
+                </div>
+              )}
             </>
           )}
         </CardContent>
@@ -144,9 +171,10 @@ export function UserTaskDetailPage() {
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
         title="Supprimer cette tâche ?"
-        description="Êtes-vous sûr de vouloir supprimer cette tâche ? Cette action est irréversible."
+        description="Êtes-vous sûr de vouloir supprimer cette tâche ? Cette tâche ne sera plus visible dans votre liste."
         confirmLabel="Supprimer"
         onConfirm={handleDelete}
+        loading={isDeleting}
       />
     </div>
   )

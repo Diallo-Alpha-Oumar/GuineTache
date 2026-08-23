@@ -20,35 +20,61 @@ import { formatDate } from '@/utils/date'
 
 export function AdminUsersListPage() {
   const [users, setUsers] = useState<PublicUser[]>([])
+  const [taskCounts, setTaskCounts] = useState<Record<string, number>>({})
   const [search, setSearch] = useState('')
   const [role, setRole] = useState<UserRole | 'ALL'>('ALL')
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL')
   const [userToDelete, setUserToDelete] = useState<PublicUser | null>(null)
 
   function refresh() {
-    setUsers(userService.getAll())
+    userService.getAll().then(setUsers)
+    taskService.getAll().then((tasks) => {
+      const counts: Record<string, number> = {}
+      tasks.forEach((task) => {
+        if (!task.assignedToId) return
+        counts[task.assignedToId] = (counts[task.assignedToId] ?? 0) + 1
+      })
+      setTaskCounts(counts)
+    })
   }
 
   useEffect(refresh, [])
 
   const filtered = useMemo(() => {
-    return userService.getAll({ search, role, status: statusFilter })
+    let result = users
+    if (search) {
+      const term = search.toLowerCase()
+      result = result.filter((u) => u.fullName.toLowerCase().includes(term) || u.email.toLowerCase().includes(term))
+    }
+    if (role !== 'ALL') result = result.filter((u) => u.role === role)
+    if (statusFilter !== 'ALL') {
+      result = result.filter((u) => (statusFilter === 'ACTIVE' ? u.isActive : !u.isActive))
+    }
+    return result
   }, [users, search, role, statusFilter])
 
   const { page, totalPages, setPage, paginated } = usePagination(filtered, 8)
 
-  function handleToggleActive(user: PublicUser) {
-    userService.toggleActive(user.id)
-    toast.success(user.isActive ? 'Utilisateur désactivé' : 'Utilisateur activé')
-    refresh()
+  async function handleToggleActive(user: PublicUser) {
+    const result = await userService.toggleActive(user.id)
+    if (result.success) {
+      toast.success(user.isActive ? 'Utilisateur désactivé' : 'Utilisateur activé')
+      refresh()
+    } else {
+      toast.error(result.message ?? 'Impossible de modifier le statut.')
+    }
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!userToDelete) return
-    userService.remove(userToDelete.id)
-    toast.success('Utilisateur supprimé')
-    setUserToDelete(null)
-    refresh()
+    const result = await userService.remove(userToDelete.id)
+    if (result.success) {
+      toast.success('Utilisateur supprimé')
+      setUserToDelete(null)
+      refresh()
+    } else {
+      toast.error(result.message ?? 'Impossible de supprimer cet utilisateur.')
+    }
   }
 
   return (
@@ -111,7 +137,7 @@ export function AdminUsersListPage() {
                       <TableCell>
                         <Badge variant={user.role === 'ADMIN' ? 'default' : 'secondary'}>{user.role}</Badge>
                       </TableCell>
-                      <TableCell>{taskService.getAll({ assignedToId: user.id }).length}</TableCell>
+                      <TableCell>{taskCounts[user.id] ?? 0}</TableCell>
                       <TableCell>{formatDate(user.createdAt)}</TableCell>
                       <TableCell>
                         <Switch checked={user.isActive} onCheckedChange={() => handleToggleActive(user)} />

@@ -38,12 +38,13 @@ export function AdminUserDetailPage() {
 
   function refresh() {
     if (!id) return
-    const found = userService.getById(id)
-    setUser(found)
-    if (found) {
-      reset({ fullName: found.fullName, email: found.email })
-      setTasks(taskService.getAll({ assignedToId: found.id }))
-    }
+    userService.getById(id).then((found) => {
+      setUser(found)
+      if (found) {
+        reset({ fullName: found.fullName, email: found.email })
+        taskService.getAll({ assignedToId: found.id }).then(setTasks)
+      }
+    })
   }
 
   useEffect(refresh, [id])
@@ -63,23 +64,35 @@ export function AdminUserDetailPage() {
 
   async function onSubmit(values: ProfileFormValues) {
     if (!user) return
-    userService.update(user.id, values)
-    toast.success('Utilisateur mis à jour')
-    refresh()
+    const result = await userService.update(user.id, values)
+    if (result.success) {
+      toast.success('Utilisateur mis à jour')
+      refresh()
+    } else {
+      toast.error(result.message ?? "Impossible de mettre à jour l'utilisateur.")
+    }
   }
 
-  function handleRoleChange(role: UserRole) {
+  async function handleRoleChange(role: UserRole) {
     if (!user) return
-    userService.update(user.id, { role })
-    toast.success('Rôle mis à jour')
-    refresh()
+    const result = await userService.update(user.id, { role })
+    if (result.success) {
+      toast.success('Rôle mis à jour')
+      refresh()
+    } else {
+      toast.error(result.message ?? 'Impossible de mettre à jour le rôle.')
+    }
   }
 
-  function handleToggleActive() {
+  async function handleToggleActive() {
     if (!user) return
-    userService.toggleActive(user.id)
-    toast.success(user.isActive ? 'Utilisateur désactivé' : 'Utilisateur activé')
-    refresh()
+    const result = await userService.toggleActive(user.id)
+    if (result.success) {
+      toast.success(user.isActive ? 'Utilisateur désactivé' : 'Utilisateur activé')
+      refresh()
+    } else {
+      toast.error(result.message ?? 'Impossible de modifier le statut.')
+    }
   }
 
   return (

@@ -11,14 +11,14 @@ export interface User {
   password: string // uniquement utilisé côté mock/localStorage
   role: UserRole
   isActive: boolean
-  avatarUrl?: string
+  avatarUrl: string | null
   createdAt: string
   updatedAt: string
 }
 
 export type PublicUser = Omit<User, 'password'>
 
-export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'DONE'
+export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'CANCELLED' | 'DONE'
 
 export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
 
@@ -82,6 +82,7 @@ export interface TaskStats {
   total: number
   todo: number
   inProgress: number
+  cancelled: number
   done: number
   overdue: number
 }

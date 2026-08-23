@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
-import { Loader2, LogIn, Mail, ShieldCheck, Sparkles, UserRound } from 'lucide-react'
+import { Loader2, LogIn, Mail, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,11 +13,6 @@ import { useAuth } from '@/hooks/use-auth'
 import { loginSchema, type LoginFormValues } from '@/utils/validation'
 import { cn } from '@/lib/utils'
 
-const DEMO_ACCOUNTS = {
-  ADMIN: { email: 'admin@guinetache.com', password: 'Admin123!' },
-  USER: { email: 'user@guinetache.com', password: 'User123!' },
-} as const
-
 export function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
@@ -27,15 +22,8 @@ export function LoginPage() {
   const {
     register,
     handleSubmit,
-    setValue,
     formState: { errors, isSubmitting },
   } = useForm<LoginFormValues>({ resolver: zodResolver(loginSchema) })
-
-  function fillDemoAccount(role: keyof typeof DEMO_ACCOUNTS) {
-    const account = DEMO_ACCOUNTS[role]
-    setValue('email', account.email, { shouldValidate: true })
-    setValue('password', account.password, { shouldValidate: true })
-  }
 
   async function onSubmit(values: LoginFormValues) {
     setServerError(null)
@@ -122,34 +110,6 @@ export function LoginPage() {
             S'inscrire
           </Link>
         </p>
-
-        <div className="space-y-3 rounded-lg border bg-muted/40 p-4">
-          <p className="text-center font-mono text-[11px] tracking-wider text-muted-foreground uppercase">
-            Connexion rapide (démo)
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="transition-colors hover:border-foreground/30"
-              onClick={() => fillDemoAccount('ADMIN')}
-            >
-              <ShieldCheck />
-              Admin
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="transition-colors hover:border-foreground/30"
-              onClick={() => fillDemoAccount('USER')}
-            >
-              <UserRound />
-              Utilisateur
-            </Button>
-          </div>
-        </div>
       </form>
     </div>
   )

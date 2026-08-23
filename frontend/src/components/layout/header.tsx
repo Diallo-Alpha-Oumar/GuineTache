@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
-import { LogOut, Menu, Settings, UserRound } from 'lucide-react'
+import { LogOut, Menu, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,6 +54,7 @@ export function Header({ onMenuClick, basePath, profilePath }: HeaderProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="flex items-center gap-2 px-2">
               <Avatar className="size-7">
+                {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.fullName} />}
                 <AvatarFallback className="text-xs">{user ? getInitials(user.fullName) : '??'}</AvatarFallback>
               </Avatar>
               <span className="hidden text-sm font-medium sm:inline">{user?.fullName}</span>
@@ -62,15 +63,8 @@ export function Header({ onMenuClick, basePath, profilePath }: HeaderProps) {
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>
               <p className="font-medium">{user?.fullName}</p>
-              <p className="text-xs font-normal text-muted-foreground">{user?.email}</p>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {profilePath && (
-              <DropdownMenuItem onClick={() => navigate(profilePath)}>
-                <UserRound />
-                Mon profil
-              </DropdownMenuItem>
-            )}
             <DropdownMenuItem onClick={() => navigate(profilePath ?? basePath)}>
               <Settings />
               Paramètres

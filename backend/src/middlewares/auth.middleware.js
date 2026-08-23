@@ -36,4 +36,12 @@ const authenticate = catchAsync(async (req, res, next) => {
   next();
 });
 
-module.exports = { authenticate };
+const requireAdmin = (req, res, next) => {
+  if (req.user.role !== 'admin') {
+    next(ApiError.forbidden('Accès réservé aux administrateurs.'));
+    return;
+  }
+  next();
+};
+
+module.exports = { authenticate, requireAdmin };
