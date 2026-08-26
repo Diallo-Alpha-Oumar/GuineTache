@@ -23,6 +23,7 @@ import { AdminUsersListPage } from '@/pages/admin/users-list-page'
 import { AdminUserDetailPage } from '@/pages/admin/user-detail-page'
 import { AdminTasksListPage } from '@/pages/admin/tasks-list-page'
 import { AdminTaskNewPage } from '@/pages/admin/task-new-page'
+import { AdminSettingsPage } from '@/pages/admin/settings-page'
 
 import { NotFoundPage } from '@/pages/not-found-page'
 
@@ -60,6 +61,7 @@ export function AppRouter() {
             <Route path="/admin/tasks" element={<AdminTasksListPage />} />
             <Route path="/admin/tasks/new" element={<AdminTaskNewPage />} />
             <Route path="/admin/notifications" element={<NotificationsPage />} />
+            <Route path="/admin/settings" element={<AdminSettingsPage />} />
           </Route>
         </Route>
 

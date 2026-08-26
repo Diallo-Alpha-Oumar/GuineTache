@@ -1,51 +1,78 @@
-import { db } from '@/data/db'
 import type { AppNotification, NotificationType } from '@/types'
-import { generateId } from '@/utils/id'
+import { api } from '@/lib/api-client'
+
+interface BackendNotification {
+  id: string
+  user: string
+  type: 'task_assigned' | 'task_updated' | 'task_completed' | 'task_overdue' | 'system'
+  title: string
+  message: string
+  relatedTask: string | null
+  read: boolean
+  createdAt: string
+}
+
+const TYPE_FROM_BACKEND: Record<BackendNotification['type'], NotificationType> = {
+  task_assigned: 'TASK_ASSIGNED',
+  task_updated: 'TASK_UPDATED',
+  task_completed: 'TASK_COMPLETED',
+  task_overdue: 'TASK_OVERDUE',
+  system: 'SYSTEM',
+}
+
+function toFrontendNotification(notification: BackendNotification): AppNotification {
+  return {
+    id: notification.id,
+    userId: notification.user,
+    type: TYPE_FROM_BACKEND[notification.type],
+    title: notification.title,
+    message: notification.message,
+    read: notification.read,
+    createdAt: notification.createdAt,
+    relatedTaskId: notification.relatedTask ?? undefined,
+  }
+}
 
 export const notificationService = {
-  getForUser(userId: string): AppNotification[] {
-    return db
-      .getNotifications()
-      .filter((n) => n.userId === userId)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-  },
-
-  getUnreadCount(userId: string): number {
-    return db.getNotifications().filter((n) => n.userId === userId && !n.read).length
-  },
-
-  create(
-    userId: string,
-    type: NotificationType,
-    title: string,
-    message: string,
-    relatedTaskId?: string,
-  ): AppNotification {
-    const notification: AppNotification = {
-      id: generateId('notif'),
-      userId,
-      type,
-      title,
-      message,
-      read: false,
-      createdAt: new Date().toISOString(),
-      relatedTaskId,
+  async getForUser(): Promise<AppNotification[]> {
+    try {
+      const result = await api.get<{ notifications: BackendNotification[] }>('/notifications?limit=50')
+      return (result.data?.notifications ?? []).map(toFrontendNotification)
+    } catch {
+      return []
     }
-    db.saveNotifications([notification, ...db.getNotifications()])
-    return notification
   },
 
-  markAsRead(id: string): void {
-    const notifications = db.getNotifications().map((n) => (n.id === id ? { ...n, read: true } : n))
-    db.saveNotifications(notifications)
+  async getUnreadCount(): Promise<number> {
+    try {
+      const result = await api.get<{ count: number }>('/notifications/unread-count')
+      return result.data?.count ?? 0
+    } catch {
+      return 0
+    }
   },
 
-  markAllAsRead(userId: string): void {
-    const notifications = db.getNotifications().map((n) => (n.userId === userId ? { ...n, read: true } : n))
-    db.saveNotifications(notifications)
+  async markAsRead(id: string): Promise<void> {
+    try {
+      await api.patch(`/notifications/${id}/read`)
+    } catch {
+      // silencieux : une notification déjà lue/supprimée ne doit pas bloquer l'UI
+    }
   },
 
-  remove(id: string): void {
-    db.saveNotifications(db.getNotifications().filter((n) => n.id !== id))
+  async markAllAsRead(): Promise<void> {
+    try {
+      await api.patch('/notifications/read-all')
+    } catch {
+      // silencieux
+    }
+  },
+
+  async remove(id: string): Promise<void> {
+    try {
+      await api.delete(`/notifications/${id}`)
+    } catch {
+      // silencieux
+    }
   },
 }

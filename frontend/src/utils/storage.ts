@@ -22,11 +22,6 @@ export function removeItem(key: string): void {
 }
 
 export const STORAGE_KEYS = {
-  users: 'users',
-  tasks: 'tasks',
-  notifications: 'notifications',
   session: 'session',
-  otp: 'otp',
-  seeded: 'seeded_v1',
   theme: 'theme',
 } as const

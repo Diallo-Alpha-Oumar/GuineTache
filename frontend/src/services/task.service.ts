@@ -1,8 +1,5 @@
 import type { ApiResult, Task, TaskPriority, TaskStatus, TaskStats } from '@/types'
 import { api, ApiRequestError } from '@/lib/api-client'
-import { emailService } from './email.service'
-import { notificationService } from './notification.service'
-import { userService } from './user.service'
 
 const MONGO_OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/
 
@@ -96,22 +93,6 @@ export type TaskInput = {
   assignedToId: string | null
 }
 
-async function notifyAssignment(task: Task, actorId: string) {
-  if (!task.assignedToId || task.assignedToId === actorId) return
-
-  const assignee = await userService.getById(task.assignedToId)
-  if (!assignee) return
-
-  notificationService.create(
-    assignee.id,
-    'TASK_ASSIGNED',
-    'Nouvelle tâche assignée',
-    `Une nouvelle tâche vous a été assignée : ${task.title}.`,
-    task.id,
-  )
-  emailService.sendTaskAssignedEmail(assignee.email, task.title)
-}
-
 export const taskService = {
   // Le backend applique déjà le filtrage par utilisateur : un compte non-admin ne
   // reçoit ici que les tâches qu'il a créées ou qui lui sont assignées.
@@ -144,7 +125,7 @@ export const taskService = {
     }
   },
 
-  async create(input: TaskInput, createdById: string): Promise<ApiResult<Task>> {
+  async create(input: TaskInput, _createdById: string): Promise<ApiResult<Task>> {
     // L'assignation n'est envoyée au backend que si elle correspond à un vrai
     // utilisateur MongoDB (les utilisateurs de démonstration ont des ids fictifs).
     const assignedTo =
@@ -164,7 +145,6 @@ export const taskService = {
       }
 
       const task = toFrontendTask(result.data.task)
-      void notifyAssignment({ ...task, assignedToId: input.assignedToId }, createdById)
 
       return { success: true, data: task, message: result.message }
     } catch (error) {
@@ -172,7 +152,7 @@ export const taskService = {
     }
   },
 
-  async update(id: string, changes: Partial<TaskInput>, actorId: string): Promise<ApiResult<Task>> {
+  async update(id: string, changes: Partial<TaskInput>, _actorId: string): Promise<ApiResult<Task>> {
     if (!MONGO_OBJECT_ID_REGEX.test(id)) {
       return { success: false, message: 'Tâche introuvable.' }
     }
@@ -195,28 +175,6 @@ export const taskService = {
       }
 
       const updated = { ...toFrontendTask(result.data.task), assignedToId: changes.assignedToId ?? result.data.task.assignedTo }
-
-      if (changes.assignedToId && changes.status === undefined) {
-        void notifyAssignment(updated, actorId)
-      } else if (updated.assignedToId && updated.assignedToId !== actorId) {
-        notificationService.create(
-          updated.assignedToId,
-          'TASK_UPDATED',
-          'Tâche modifiée',
-          `La tâche "${updated.title}" a été mise à jour.`,
-          updated.id,
-        )
-      }
-
-      if (changes.status === 'DONE' && updated.assignedToId) {
-        notificationService.create(
-          updated.assignedToId,
-          'TASK_COMPLETED',
-          'Tâche terminée',
-          `La tâche "${updated.title}" a été marquée comme terminée.`,
-          updated.id,
-        )
-      }
 
       return { success: true, data: updated, message: result.message }
     } catch (error) {

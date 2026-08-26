@@ -35,8 +35,11 @@ cp .env.example .env
 | `COOKIE_SECRET` | Secret de signature des cookies |
 | `RATE_LIMIT_*` / `AUTH_RATE_LIMIT_*` | Fenêtre et nombre max de requêtes (global et routes sensibles) |
 | `BCRYPT_SALT_ROUNDS` | Coût du hashage des mots de passe |
-| `DATABASE_URL` | Réservé à la future intégration base de données |
+| `MONGODB_URI` | URI de connexion MongoDB (Mongoose) |
 | `LOG_LEVEL` | Niveau de log (`info`, `debug`, ...) |
+| `APP_NAME` | Nom de l'application (utilisé dans les e-mails) |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `MAIL_FROM` | Configuration SMTP pour l'envoi des e-mails (OTP, réinitialisation) |
+| `OTP_EXPIRES_IN_MINUTES` / `OTP_MAX_ATTEMPTS` / `OTP_RESEND_COOLDOWN_SECONDS` | Paramètres du code de vérification OTP |
 
 En production, `JWT_SECRET`, `JWT_REFRESH_SECRET` et `COOKIE_SECRET` sont obligatoires (le serveur refuse de démarrer sinon).
 
@@ -82,9 +85,8 @@ backend/
 │   ├── config/         # configuration (env, logger, cors, swagger)
 │   ├── controllers/     # contrôleurs HTTP (légers, délèguent aux services)
 │   ├── routes/          # définition des routes, montées sous /api/v1
-│   ├── services/        # logique métier
-│   ├── models/          # modèles de données (à intégrer avec une BDD)
-│   ├── repositories/    # accès aux données (à intégrer avec une BDD)
+│   ├── services/        # logique métier + accès aux données (modèles Mongoose)
+│   ├── models/          # schémas Mongoose (User, Task, Notification, Session, Verification)
 │   ├── middlewares/      # sécurité, rate limiting, validation, erreurs
 │   ├── validators/       # schémas de validation (Zod)
 │   ├── utils/            # utilitaires (réponses API, JWT, mots de passe...)
@@ -103,8 +105,7 @@ backend/
 Principes :
 
 - **Controllers** minces : ils reçoivent la requête, appellent un service, renvoient une réponse standardisée.
-- **Services** : contiennent la logique métier, indépendants d'Express.
-- **Repositories** : encapsulent l'accès aux données (prêt pour une intégration PostgreSQL future).
+- **Services** : contiennent la logique métier et l'accès aux données via les modèles Mongoose (pas de couche repository séparée — le projet est volontairement resté simple, un seul ORM/une seule base de données étant utilisés).
 - **Réponses API standardisées** via `src/utils/ApiResponse.js` :
 
 ```json
@@ -135,4 +136,11 @@ Toutes les routes sont montées sous `/api/v1`, permettant une évolution future
 
 ## Base de données
 
-Aucune base de données n'est encore connectée. L'architecture (`models/`, `repositories/`) est prête pour l'intégration d'une base comme PostgreSQL, sans ORM imposé à ce stade.
+MongoDB via Mongoose (`MONGODB_URI`). Modèles : `User`, `Task`, `Notification`, `Session` (refresh tokens), `Verification` (codes OTP).
+
+## Fonctionnalités principales
+
+- **Auth** : inscription avec vérification par OTP e-mail, connexion, refresh token (cookie httpOnly), mot de passe oublié/réinitialisation, changement de mot de passe, avatar.
+- **Tasks** : CRUD, suppression douce + restauration (admin), statistiques, filtres.
+- **Users** (admin) : liste, activation/désactivation, rôles, suppression.
+- **Notifications** : générées automatiquement par le backend lors de l'assignation, la mise à jour ou la complétion d'une tâche (`GET/PATCH/DELETE /notifications`).

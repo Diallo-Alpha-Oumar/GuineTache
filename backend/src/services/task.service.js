@@ -1,6 +1,8 @@
 const Task = require('../models/Task');
 const User = require('../models/User');
 const ApiError = require('../errors/ApiError');
+const notificationService = require('./notification.service');
+const logger = require('../config/logger');
 
 const PUBLIC_TASK_FIELDS = [
   '_id',
@@ -25,6 +27,14 @@ const toPublicTask = (task) => {
 
 const isAdmin = (user) => user.role === 'admin';
 
+const notifySafe = async (payload) => {
+  try {
+    await notificationService.create(payload);
+  } catch (error) {
+    logger.error(`Échec de création de notification: ${error.message}`);
+  }
+};
+
 const canAccessTask = (task, user) =>
   isAdmin(user) || task.createdBy.toString() === user._id.toString() || task.assignedTo?.toString() === user._id.toString();
 
@@ -46,6 +56,16 @@ const create = async ({ title, description, priority, dueDate, assignedTo }, cre
     assignedTo: assignedTo ?? null,
     createdBy: createdById,
   });
+
+  if (assignedTo && assignedTo.toString() !== createdById.toString()) {
+    void notifySafe({
+      user: assignedTo,
+      type: 'task_assigned',
+      title: 'Nouvelle tâche assignée',
+      message: `Une nouvelle tâche vous a été assignée : ${task.title}.`,
+      relatedTask: task._id,
+    });
+  }
 
   return toPublicTask(task);
 };
@@ -102,8 +122,43 @@ const update = async (id, changes, currentUser) => {
     }
   }
 
+  const previousAssignedTo = task.assignedTo?.toString() ?? null;
+  const actorId = currentUser._id.toString();
+
   Object.assign(task, changes);
   await task.save();
+
+  const newAssignedTo = task.assignedTo?.toString() ?? null;
+  const wasReassigned = 'assignedTo' in changes && newAssignedTo && newAssignedTo !== previousAssignedTo;
+
+  if (wasReassigned && newAssignedTo !== actorId) {
+    void notifySafe({
+      user: newAssignedTo,
+      type: 'task_assigned',
+      title: 'Nouvelle tâche assignée',
+      message: `Une nouvelle tâche vous a été assignée : ${task.title}.`,
+      relatedTask: task._id,
+    });
+  } else if (newAssignedTo && newAssignedTo !== actorId && !('status' in changes)) {
+    void notifySafe({
+      user: newAssignedTo,
+      type: 'task_updated',
+      title: 'Tâche modifiée',
+      message: `La tâche "${task.title}" a été mise à jour.`,
+      relatedTask: task._id,
+    });
+  }
+
+  if (changes.status === 'done' && newAssignedTo) {
+    void notifySafe({
+      user: newAssignedTo,
+      type: 'task_completed',
+      title: 'Tâche terminée',
+      message: `La tâche "${task.title}" a été marquée comme terminée.`,
+      relatedTask: task._id,
+    });
+  }
+
   return toPublicTask(task);
 };
 

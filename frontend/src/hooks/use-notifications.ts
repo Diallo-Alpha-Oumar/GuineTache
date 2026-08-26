@@ -5,36 +5,36 @@ import { notificationService } from '@/services/notification.service'
 export function useNotifications(userId: string | undefined) {
   const [notifications, setNotifications] = useState<AppNotification[]>([])
 
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async () => {
     if (!userId) {
       setNotifications([])
       return
     }
-    setNotifications(notificationService.getForUser(userId))
+    setNotifications(await notificationService.getForUser())
   }, [userId])
 
   useEffect(() => {
-    refresh()
+    void refresh()
   }, [refresh])
 
   const markAsRead = useCallback(
-    (id: string) => {
-      notificationService.markAsRead(id)
-      refresh()
+    async (id: string) => {
+      await notificationService.markAsRead(id)
+      await refresh()
     },
     [refresh],
   )
 
-  const markAllAsRead = useCallback(() => {
+  const markAllAsRead = useCallback(async () => {
     if (!userId) return
-    notificationService.markAllAsRead(userId)
-    refresh()
+    await notificationService.markAllAsRead()
+    await refresh()
   }, [userId, refresh])
 
   const remove = useCallback(
-    (id: string) => {
-      notificationService.remove(id)
-      refresh()
+    async (id: string) => {
+      await notificationService.remove(id)
+      await refresh()
     },
     [refresh],
   )

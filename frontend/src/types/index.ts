@@ -8,7 +8,6 @@ export interface User {
   id: string
   fullName: string
   email: string
-  password: string // uniquement utilisé côté mock/localStorage
   role: UserRole
   isActive: boolean
   avatarUrl: string | null
@@ -16,7 +15,7 @@ export interface User {
   updatedAt: string
 }
 
-export type PublicUser = Omit<User, 'password'>
+export type PublicUser = User
 
 export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'CANCELLED' | 'DONE'
 
@@ -91,4 +90,19 @@ export interface AdminStats extends TaskStats {
   totalUsers: number
   activeUsers: number
   tasksPerUser: { userName: string; count: number }[]
+}
+
+export interface AppNotificationSettings {
+  taskAssigned: boolean
+  taskUpdated: boolean
+  taskCompleted: boolean
+  taskOverdue: boolean
+}
+
+export interface AppSettings {
+  registrationOpen: boolean
+  maintenanceMode: boolean
+  maintenanceMessage: string
+  notifications: AppNotificationSettings
+  updatedAt?: string
 }

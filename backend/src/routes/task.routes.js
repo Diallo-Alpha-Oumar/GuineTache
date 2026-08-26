@@ -2,6 +2,7 @@ const express = require('express');
 const taskController = require('../controllers/task.controller');
 const validate = require('../middlewares/validate');
 const { authenticate } = require('../middlewares/auth.middleware');
+const enforceMaintenanceMode = require('../middlewares/maintenance.middleware');
 const {
   createTaskSchema,
   updateTaskSchema,
@@ -40,7 +41,8 @@ const router = express.Router();
  *       401:
  *         description: Non authentifié
  */
-router.post('/', authenticate, validate(createTaskSchema), taskController.create);
+router.post('/', authenticate,
+  enforceMaintenanceMode, validate(createTaskSchema), taskController.create);
 
 /**
  * @openapi
@@ -56,7 +58,8 @@ router.post('/', authenticate, validate(createTaskSchema), taskController.create
  *       401:
  *         description: Non authentifié
  */
-router.get('/', authenticate, validate(listTasksSchema), taskController.list);
+router.get('/', authenticate,
+  enforceMaintenanceMode, validate(listTasksSchema), taskController.list);
 
 /**
  * @openapi
@@ -72,7 +75,8 @@ router.get('/', authenticate, validate(listTasksSchema), taskController.list);
  *       401:
  *         description: Non authentifié
  */
-router.get('/stats', authenticate, taskController.stats);
+router.get('/stats', authenticate,
+  enforceMaintenanceMode, taskController.stats);
 
 /**
  * @openapi
@@ -92,7 +96,8 @@ router.get('/stats', authenticate, taskController.stats);
  *       404:
  *         description: Tâche introuvable
  */
-router.get('/:id', authenticate, validate(taskIdParamsSchema), taskController.getById);
+router.get('/:id', authenticate,
+  enforceMaintenanceMode, validate(taskIdParamsSchema), taskController.getById);
 
 /**
  * @openapi
@@ -112,7 +117,8 @@ router.get('/:id', authenticate, validate(taskIdParamsSchema), taskController.ge
  *       404:
  *         description: Tâche introuvable
  */
-router.patch('/:id', authenticate, validate(updateTaskSchema), taskController.update);
+router.patch('/:id', authenticate,
+  enforceMaintenanceMode, validate(updateTaskSchema), taskController.update);
 
 /**
  * @openapi
@@ -134,7 +140,8 @@ router.patch('/:id', authenticate, validate(updateTaskSchema), taskController.up
  *       409:
  *         description: Tâche déjà supprimée
  */
-router.delete('/:id', authenticate, validate(taskIdParamsSchema), taskController.remove);
+router.delete('/:id', authenticate,
+  enforceMaintenanceMode, validate(taskIdParamsSchema), taskController.remove);
 
 /**
  * @openapi
@@ -154,6 +161,7 @@ router.delete('/:id', authenticate, validate(taskIdParamsSchema), taskController
  *       404:
  *         description: Tâche supprimée introuvable
  */
-router.patch('/:id/restore', authenticate, validate(taskIdParamsSchema), taskController.restore);
+router.patch('/:id/restore', authenticate,
+  enforceMaintenanceMode, validate(taskIdParamsSchema), taskController.restore);
 
 module.exports = router;

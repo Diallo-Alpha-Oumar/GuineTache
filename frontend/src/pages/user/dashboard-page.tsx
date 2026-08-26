@@ -37,17 +37,16 @@ export function UserDashboardPage() {
     if (!user) return
     taskService.getStats().then(setStats)
     taskService.getAll().then(setTasks)
-    setActivity(
-      notificationService
-        .getForUser(user.id)
-        .slice(0, 5)
-        .map((n) => ({
+    notificationService.getForUser().then((notifications) =>
+      setActivity(
+        notifications.slice(0, 5).map((n) => ({
           id: n.id,
           title: n.title,
           description: n.message,
           createdAt: n.createdAt,
           icon: NOTIFICATION_ICONS[n.type],
         })),
+      ),
     )
   }, [user])
 

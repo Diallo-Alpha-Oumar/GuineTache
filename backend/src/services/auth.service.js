@@ -5,6 +5,7 @@ const ApiError = require('../errors/ApiError');
 const otpService = require('./otp.service');
 const tokenService = require('./token.service');
 const emailService = require('./email.service');
+const settingsService = require('./settings.service');
 const { AVATARS_DIR } = require('../middlewares/upload.middleware');
 const env = require('../config/env');
 
@@ -30,6 +31,11 @@ const toPublicUser = (user) => {
 };
 
 const register = async ({ firstName, lastName, email, password }) => {
+  const { registrationOpen } = await settingsService.getPublicSettings();
+  if (!registrationOpen) {
+    throw ApiError.forbidden('Les inscriptions sont actuellement fermées. Veuillez réessayer plus tard.');
+  }
+
   const existing = await User.findOne({ email });
   if (existing) {
     throw ApiError.conflict('Cette adresse e-mail est déjà utilisée.');

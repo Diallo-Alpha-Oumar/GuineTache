@@ -28,4 +28,5 @@ export const ADMIN_NAV_ITEMS: NavItem[] = [
   { label: 'Utilisateurs', to: '/admin/users', icon: Users },
   { label: 'Tâches', to: '/admin/tasks', icon: ListChecks, end: true },
   { label: 'Notifications', to: '/admin/notifications', icon: Bell },
+  { label: 'Paramètres', to: '/admin/settings', icon: Settings },
 ]
