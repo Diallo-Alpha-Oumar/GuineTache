@@ -14,6 +14,7 @@ import { taskService } from '@/services/task.service'
 import type { Task, TaskStatus } from '@/types'
 import { formatDateTime } from '@/utils/date'
 import { TASK_STATUS_LABELS } from '@/utils/constants'
+import { canChangeTaskStatus } from '@/utils/task-permissions'
 import type { TaskFormValues } from '@/utils/validation'
 
 export function UserTaskDetailPage() {
@@ -68,7 +69,7 @@ export function UserTaskDetailPage() {
     }
   }
 
-  const canChangeStatus = !!user && task.createdById === user.id
+  const canChangeStatus = !!user && canChangeTaskStatus(task, user.id)
 
   async function handleDelete() {
     if (!task) return
@@ -115,7 +116,12 @@ export function UserTaskDetailPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           {isEditing ? (
-            <TaskForm task={task} onSubmit={handleEditSubmit} submitLabel="Enregistrer les modifications" />
+            <TaskForm
+              task={task}
+              onSubmit={handleEditSubmit}
+              submitLabel="Enregistrer les modifications"
+              statusEditable={canChangeStatus}
+            />
           ) : (
             <>
               <div>
@@ -158,7 +164,9 @@ export function UserTaskDetailPage() {
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-muted-foreground">Statut</p>
                   <p className="text-xs text-muted-foreground">
-                    Seule la personne ayant créé la tâche peut modifier son statut.
+                    {task.assignedToId
+                      ? 'Seule la personne assignée peut modifier le statut de cette tâche.'
+                      : "Vous n'avez pas le droit de modifier le statut de cette tâche."}
                   </p>
                 </div>
               )}

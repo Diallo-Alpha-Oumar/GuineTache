@@ -44,12 +44,14 @@ describe('task.service', () => {
       );
     });
 
-    it("ne notifie personne si le créateur s'assigne la tâche à lui-même", async () => {
+    it("notifie aussi le créateur quand il s'assigne la tâche à lui-même", async () => {
       Task.create.mockResolvedValue({ _id: 'task1', title: 'Tâche', assignedTo: ownerId, createdBy: ownerId });
 
       await taskService.create({ title: 'Tâche', assignedTo: ownerId }, ownerId);
 
-      expect(notificationService.create).not.toHaveBeenCalled();
+      expect(notificationService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ user: ownerId, type: 'task_assigned' })
+      );
     });
   });
 
@@ -94,13 +96,59 @@ describe('task.service', () => {
       const task = buildTask({ assignedTo: { toString: () => assigneeId } });
       Task.findById.mockResolvedValue(task);
 
-      const currentUser = { _id: ownerId, role: 'user' };
+      const currentUser = { _id: assigneeId, role: 'user' };
 
       await taskService.update('task1', { status: 'done' }, currentUser);
 
       expect(notificationService.create).toHaveBeenCalledWith(
         expect.objectContaining({ type: 'task_completed', user: assigneeId })
       );
+    });
+
+    it("refuse au créateur de changer le statut d'une tâche qu'il a assignée à quelqu'un d'autre", async () => {
+      const task = buildTask({ assignedTo: { toString: () => assigneeId } });
+      Task.findById.mockResolvedValue(task);
+
+      const currentUser = { _id: ownerId, role: 'user' };
+
+      await expect(taskService.update('task1', { status: 'done' }, currentUser)).rejects.toMatchObject({
+        statusCode: 403,
+      });
+      expect(task.save).not.toHaveBeenCalled();
+    });
+
+    it("refuse à un admin qui n'est ni créateur ni assigné de changer le statut", async () => {
+      const task = buildTask({ assignedTo: { toString: () => assigneeId } });
+      Task.findById.mockResolvedValue(task);
+
+      const currentUser = { _id: otherId, role: 'admin' };
+
+      await expect(taskService.update('task1', { status: 'done' }, currentUser)).rejects.toMatchObject({
+        statusCode: 403,
+      });
+      expect(task.save).not.toHaveBeenCalled();
+    });
+
+    it('autorise un admin créateur de la tâche à changer son statut', async () => {
+      const task = buildTask();
+      Task.findById.mockResolvedValue(task);
+
+      const currentUser = { _id: ownerId, role: 'admin' };
+
+      await taskService.update('task1', { status: 'in_progress' }, currentUser);
+
+      expect(task.save).toHaveBeenCalled();
+    });
+
+    it('laisse un admin modifier un autre champ que le statut sur la tâche d’un tiers', async () => {
+      const task = buildTask({ assignedTo: { toString: () => assigneeId } });
+      Task.findById.mockResolvedValue(task);
+
+      const currentUser = { _id: otherId, role: 'admin' };
+
+      await taskService.update('task1', { title: 'Titre corrigé par un admin' }, currentUser);
+
+      expect(task.save).toHaveBeenCalled();
     });
   });
 });

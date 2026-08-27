@@ -35,10 +35,26 @@ const notifySafe = async (payload) => {
   }
 };
 
+const notifyTaskAssigned = (task, assigneeId) =>
+  notifySafe({
+    user: assigneeId,
+    type: 'task_assigned',
+    title: 'Nouvelle tâche assignée',
+    message: `Une nouvelle tâche vous a été assignée : ${task.title}.`,
+    relatedTask: task._id,
+  });
+
 const canAccessTask = (task, user) =>
   isAdmin(user) || task.createdBy.toString() === user._id.toString() || task.assignedTo?.toString() === user._id.toString();
 
 const canManageTask = (task, user) => isAdmin(user) || task.createdBy.toString() === user._id.toString();
+
+const isAssignee = (task, user) => task.assignedTo?.toString() === user._id.toString();
+
+// Une fois la tâche attribuée à quelqu'un, seule cette personne pilote son avancement :
+// ni le créateur ni un admin ne reprennent la main sur le statut. Sans assigné, le
+// créateur reste responsable puisque personne d'autre ne peut le faire.
+const canChangeStatus = (task, user) => (task.assignedTo ? isAssignee(task, user) : task.createdBy.toString() === user._id.toString());
 
 const create = async ({ title, description, priority, dueDate, assignedTo }, createdById) => {
   if (assignedTo) {
@@ -57,14 +73,8 @@ const create = async ({ title, description, priority, dueDate, assignedTo }, cre
     createdBy: createdById,
   });
 
-  if (assignedTo && assignedTo.toString() !== createdById.toString()) {
-    void notifySafe({
-      user: assignedTo,
-      type: 'task_assigned',
-      title: 'Nouvelle tâche assignée',
-      message: `Une nouvelle tâche vous a été assignée : ${task.title}.`,
-      relatedTask: task._id,
-    });
+  if (assignedTo) {
+    void notifyTaskAssigned(task, assignedTo);
   }
 
   return toPublicTask(task);
@@ -111,8 +121,23 @@ const getById = async (id, currentUser) => {
 
 const update = async (id, changes, currentUser) => {
   const task = await findActiveTaskOrThrow(id);
-  if (!canManageTask(task, currentUser)) {
+  const canManage = canManageTask(task, currentUser);
+  // La personne assignée n'a pas le droit de gérer la tâche (titre, description,
+  // réassignation…) mais doit pouvoir faire évoluer son propre statut.
+  const isAssigneeStatusOnlyChange =
+    !canManage && isAssignee(task, currentUser) && Object.keys(changes).every((key) => key === 'status');
+
+  if (!canManage && !isAssigneeStatusOnlyChange) {
     throw ApiError.forbidden("Vous n'avez pas le droit de modifier cette tâche.");
+  }
+
+  const isChangingStatus = 'status' in changes && changes.status !== task.status;
+  if (isChangingStatus && !canChangeStatus(task, currentUser)) {
+    throw ApiError.forbidden(
+      task.assignedTo
+        ? "Seule la personne assignée peut changer le statut de cette tâche."
+        : "Vous n'avez pas le droit de changer le statut de cette tâche."
+    );
   }
 
   if (changes.assignedTo) {
@@ -132,14 +157,13 @@ const update = async (id, changes, currentUser) => {
   const wasReassigned = 'assignedTo' in changes && newAssignedTo && newAssignedTo !== previousAssignedTo;
 
   if (wasReassigned && newAssignedTo !== actorId) {
-    void notifySafe({
-      user: newAssignedTo,
-      type: 'task_assigned',
-      title: 'Nouvelle tâche assignée',
-      message: `Une nouvelle tâche vous a été assignée : ${task.title}.`,
-      relatedTask: task._id,
-    });
-  } else if (newAssignedTo && newAssignedTo !== actorId && !('status' in changes)) {
+    void notifyTaskAssigned(task, newAssignedTo);
+  } else if (newAssignedTo && newAssignedTo !== actorId && changes.status !== 'done') {
+    // Notifie l'assigné qu'un tiers (créateur ou admin) a modifié la tâche (titre,
+    // description, priorité, échéance...). Le statut n'est pas concerné par cette
+    // branche : seul l'assigné peut le changer (cf. canChangeStatus plus haut), donc
+    // un vrai changement de statut a toujours actorId === newAssignedTo. On exclut
+    // le cas "done", déjà couvert par la notification "task_completed" ci-dessous.
     void notifySafe({
       user: newAssignedTo,
       type: 'task_updated',

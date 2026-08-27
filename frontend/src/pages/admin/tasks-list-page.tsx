@@ -27,6 +27,7 @@ import { userService } from '@/services/user.service'
 import type { PublicUser, Task, TaskPriority, TaskStatus } from '@/types'
 import { formatDate } from '@/utils/date'
 import { TASK_STATUS_LABELS } from '@/utils/constants'
+import { canChangeTaskStatus } from '@/utils/task-permissions'
 import type { TaskFormValues } from '@/utils/validation'
 
 export function AdminTasksListPage() {
@@ -153,6 +154,7 @@ export function AdminTasksListPage() {
                     <TableHead>Assigné à</TableHead>
                     <TableHead>Priorité</TableHead>
                     <TableHead>Statut</TableHead>
+                    <TableHead>Créée le</TableHead>
                     <TableHead>Échéance</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -167,21 +169,26 @@ export function AdminTasksListPage() {
                         <PriorityBadge priority={task.priority} />
                       </TableCell>
                       <TableCell>
-                        <Select value={task.status} onValueChange={(v) => handleStatusChange(task, v as TaskStatus)}>
-                          <SelectTrigger size="sm" className="w-36">
-                            <SelectValue>
-                              <StatusBadge status={task.status} />
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Object.entries(TASK_STATUS_LABELS).map(([value, label]) => (
-                              <SelectItem key={value} value={value}>
-                                {label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        {user && canChangeTaskStatus(task, user.id) ? (
+                          <Select value={task.status} onValueChange={(v) => handleStatusChange(task, v as TaskStatus)}>
+                            <SelectTrigger size="sm" className="w-36">
+                              <SelectValue>
+                                <StatusBadge status={task.status} />
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(TASK_STATUS_LABELS).map(([value, label]) => (
+                                <SelectItem key={value} value={value}>
+                                  {label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <StatusBadge status={task.status} />
+                        )}
                       </TableCell>
+                      <TableCell className="text-muted-foreground">{formatDate(task.createdAt)}</TableCell>
                       <TableCell>{formatDate(task.dueDate)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
@@ -209,7 +216,13 @@ export function AdminTasksListPage() {
             <DialogTitle>Modifier la tâche</DialogTitle>
           </DialogHeader>
           {taskToEdit && (
-            <TaskForm task={taskToEdit} assignableUsers={users} onSubmit={handleEditSubmit} submitLabel="Enregistrer" />
+            <TaskForm
+              task={taskToEdit}
+              assignableUsers={users}
+              onSubmit={handleEditSubmit}
+              submitLabel="Enregistrer"
+              statusEditable={!!user && canChangeTaskStatus(taskToEdit, user.id)}
+            />
           )}
         </DialogContent>
       </Dialog>

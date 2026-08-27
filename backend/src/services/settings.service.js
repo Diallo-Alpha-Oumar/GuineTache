@@ -22,11 +22,14 @@ const toPublicSettings = (settings) => ({
 });
 
 const getOrCreate = async () => {
-  let settings = await Settings.findOne();
-  if (!settings) {
-    settings = await Settings.create({});
-  }
-  return settings;
+  const existing = await Settings.findOne({});
+  if (existing) return existing;
+
+  // Upsert atomique uniquement quand le document n'existe pas encore : évite la
+  // création de plusieurs documents Settings lorsque deux requêtes concurrentes
+  // arrivent avant qu'un document n'existe, sans payer le coût d'un findAndModify
+  // à chaque lecture une fois le document créé.
+  return Settings.findOneAndUpdate({}, { $setOnInsert: {} }, { new: true, upsert: true, setDefaultsOnInsert: true });
 };
 
 const getSettings = async () => toPublicSettings(await getOrCreate());

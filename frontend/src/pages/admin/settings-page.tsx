@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, Bell, Loader2, Save, ShieldAlert, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { AccountProfileTab } from '@/components/account/account-profile-tab'
+import { AccountSecurityTab } from '@/components/account/account-security-tab'
 import { adminService } from '@/services/admin.service'
 import type { AppNotificationSettings, AppSettings } from '@/types'
 
@@ -29,7 +31,7 @@ const NOTIFICATION_LABELS: Record<keyof AppNotificationSettings, { label: string
   },
 }
 
-export function AdminSettingsPage() {
+function ApplicationSettingsTab() {
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -74,11 +76,7 @@ export function AdminSettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-2xl space-y-6">
-        <div>
-          <Skeleton className="h-8 w-64" />
-          <Skeleton className="mt-2 h-4 w-96" />
-        </div>
+      <div className="space-y-6">
         <Skeleton className="h-40 w-full" />
         <Skeleton className="h-40 w-full" />
       </div>
@@ -87,23 +85,14 @@ export function AdminSettingsPage() {
 
   if (!settings) {
     return (
-      <div className="mx-auto max-w-2xl">
-        <p className="text-sm text-muted-foreground">
-          Impossible de charger les paramètres de l’application. Réessayez plus tard.
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Impossible de charger les paramètres de l’application. Réessayez plus tard.
+      </p>
     )
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Paramètres de l'application</h1>
-        <p className="text-sm text-muted-foreground">
-          Contrôlez l'accès, la maintenance et les notifications pour l'ensemble des utilisateurs
-        </p>
-      </div>
-
+    <div className="space-y-6">
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -216,6 +205,37 @@ export function AdminSettingsPage() {
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+export function AdminSettingsPage() {
+  return (
+    <div className="mx-auto max-w-2xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold">Paramètres</h1>
+        <p className="text-sm text-muted-foreground">
+          Gérez votre profil, votre sécurité et les réglages de l'application
+        </p>
+      </div>
+
+      <Tabs defaultValue="profile">
+        <TabsList>
+          <TabsTrigger value="profile">Mon profil</TabsTrigger>
+          <TabsTrigger value="security">Sécurité</TabsTrigger>
+          <TabsTrigger value="application">Application</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="profile">
+          <AccountProfileTab />
+        </TabsContent>
+        <TabsContent value="security">
+          <AccountSecurityTab />
+        </TabsContent>
+        <TabsContent value="application">
+          <ApplicationSettingsTab />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

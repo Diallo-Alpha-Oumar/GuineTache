@@ -17,7 +17,13 @@ const listNotificationsSchema = {
     .object({
       page: z.coerce.number().int().min(1).optional(),
       limit: z.coerce.number().int().min(1).max(100).optional(),
-      unreadOnly: z.coerce.boolean().optional(),
+      // z.coerce.boolean() applique Boolean(valeur) : la chaîne "false" est
+      // "truthy" et serait donc convertie en `true`. On compare explicitement
+      // à la chaîne "true" pour éviter ce piège avec les query params.
+      unreadOnly: z
+        .enum(['true', 'false'])
+        .optional()
+        .transform((value) => value === 'true'),
     })
     .strict(),
 };

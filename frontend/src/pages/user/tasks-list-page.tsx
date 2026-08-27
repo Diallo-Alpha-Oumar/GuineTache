@@ -18,6 +18,7 @@ import { usePagination } from '@/hooks/use-pagination'
 import { taskService } from '@/services/task.service'
 import type { Task, TaskPriority, TaskStatus } from '@/types'
 import { formatDate } from '@/utils/date'
+import { canChangeTaskStatus } from '@/utils/task-permissions'
 
 type SortKey = 'dueDate' | 'priority' | 'updatedAt'
 
@@ -144,7 +145,7 @@ export function UserTasksListPage() {
                         <PriorityBadge priority={task.priority} />
                       </TableCell>
                       <TableCell>
-                        {user && task.createdById === user.id ? (
+                        {user && canChangeTaskStatus(task, user.id) ? (
                           <Select value={task.status} onValueChange={(v) => handleStatusChange(task, v as TaskStatus)}>
                             <SelectTrigger size="sm" className="w-36">
                               <SelectValue>

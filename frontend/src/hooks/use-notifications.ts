@@ -1,16 +1,24 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AppNotification } from '@/types'
 import { notificationService } from '@/services/notification.service'
 
 export function useNotifications(userId: string | undefined) {
   const [notifications, setNotifications] = useState<AppNotification[]>([])
+  // Évite qu'une réponse réseau obsolète (résolue après un changement
+  // d'utilisateur) n'écrase les notifications du nouvel utilisateur.
+  const userIdRef = useRef(userId)
+  userIdRef.current = userId
 
   const refresh = useCallback(async () => {
     if (!userId) {
       setNotifications([])
       return
     }
-    setNotifications(await notificationService.getForUser())
+    const requestedUserId = userId
+    const data = await notificationService.getForUser()
+    if (userIdRef.current === requestedUserId) {
+      setNotifications(data)
+    }
   }, [userId])
 
   useEffect(() => {

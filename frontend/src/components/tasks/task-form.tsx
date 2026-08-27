@@ -16,9 +16,16 @@ interface TaskFormProps {
   assignableUsers?: PublicUser[]
   onSubmit: (values: TaskFormValues) => Promise<void> | void
   submitLabel?: string
+  statusEditable?: boolean
 }
 
-export function TaskForm({ task, assignableUsers, onSubmit, submitLabel = 'Enregistrer' }: TaskFormProps) {
+export function TaskForm({
+  task,
+  assignableUsers,
+  onSubmit,
+  submitLabel = 'Enregistrer',
+  statusEditable = true,
+}: TaskFormProps) {
   const {
     register,
     handleSubmit,
@@ -63,7 +70,7 @@ export function TaskForm({ task, assignableUsers, onSubmit, submitLabel = 'Enreg
             control={control}
             name="status"
             render={({ field }) => (
-              <Select value={field.value} onValueChange={field.onChange}>
+              <Select value={field.value} onValueChange={field.onChange} disabled={!statusEditable}>
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -77,6 +84,11 @@ export function TaskForm({ task, assignableUsers, onSubmit, submitLabel = 'Enreg
               </Select>
             )}
           />
+          {!statusEditable && (
+            <p className="text-xs text-muted-foreground">
+              Seuls le créateur ou la personne assignée peuvent changer le statut.
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
